@@ -2,14 +2,16 @@ package flux
 
 import "net/http"
 
-type Context interface {
-	Logger() Logger
-	Request() *http.Request
-	Flux() *Flux
+type Context struct {
+	Writer  http.ResponseWriter
+	Request *http.Request
+	app     *Flux
+	params  []Param
+	depends   map[string]interface{}  // dependency injection store
 }
 
-// type context struct {
-// 	logger  Logger
-// 	request *http.Request
-// 	echo    *Flux
-// }
+type Param struct {
+	Key   string
+	Value string
+}
+

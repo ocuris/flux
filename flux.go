@@ -1,33 +1,30 @@
 package flux
 
-import "sync"
-
+import (
+	"net/http"
+	"sync"
+)
 
 type HandlerFunc func(*Context) error
 type MiddlewareFunc func(HandlerFunc) HandlerFunc
-type Map map[string]interface{}
-
+type StartOption func(*http.Server)
+type Map map[string]any
 
 type Flux struct {
-	Config  Config
-	pool    *sync.Pool
-}
-
-type Route struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
-	Name   string `json:"name"`
-}
-
-
-
-type Router interface {
-	Handle(method, path string, handler HandlerFunc)
+	Config        Config
+	middleware    []MiddlewareFunc
+	logger        *Logger
+	pool          *sync.Pool
+	openapi       *OpenAPISpec
+	server        *http.Server
+	startupLogger *StartupLogger
 }
 
 func New(cfg Config) *Flux {
+	startupLogger := NewStartupLogger(cfg)
 	return &Flux{
-		Config:  cfg,
+		Config:        cfg,
+		startupLogger: startupLogger,
 	}
 }
 func (f *Flux) Use(middleware ...MiddlewareFunc) {
@@ -38,13 +35,24 @@ func (f *Flux) Pre(middleware ...MiddlewareFunc) {
 	// f.middleware = append(f.middleware, middleware...)
 }
 
-func (f *Flux) GET(path string, handler HandlerFunc, ms ...RouteOption)
+func (f *Flux) GET(path string, handler HandlerFunc, ms ...RouteOption) {
+}
 
-func (f *Flux) POST(path string, handler HandlerFunc, ms ...RouteOption)
+func (f *Flux) POST(path string, handler HandlerFunc, ms ...RouteOption) {}
 
-func (f *Flux) PUT(path string, handler HandlerFunc, ms ...RouteOption)
+func (f *Flux) PUT(path string, handler HandlerFunc, ms ...RouteOption) {}
 
-func (f *Flux) DELETE(path string, handler HandlerFunc, ms ...RouteOption)
+func (f *Flux) DELETE(path string, handler HandlerFunc, ms ...RouteOption) {}
 
-func (f *Flux) PATCH(path string, handler HandlerFunc, ms ...RouteOption)
+func (f *Flux) PATCH(path string, handler HandlerFunc, ms ...RouteOption) {}
 
+func (f *Flux) Start(addr string, opts ...StartOption) error {
+	server := &http.Server{
+		Addr: addr,
+	}
+	for _, opt := range opts {
+		opt(server)
+	}
+	f.startupLogger.PrintStartup(addr)
+	return server.ListenAndServe()
+}
