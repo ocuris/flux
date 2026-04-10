@@ -3,13 +3,28 @@ package flux
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 )
 
-// Version is the current Flux framework version.
-const (
-	Version = "1.0.0"
+var (
+	// Version is the framework version, automatically detected at runtime.
+	// Falls back to "dev" if not built with module support or in local development.
+	Version = func() string {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			for _, dep := range info.Deps {
+				if dep.Path == "github.com/ocuris/flux" {
+					return dep.Version
+				}
+			}
+			// If we are building the module itself, Main.Version is used
+			if info.Main.Version != "" && info.Main.Version != "(devel)" {
+				return info.Main.Version
+			}
+		}
+		return "dev"
+	}()
 	website = "https://github.com/ocuris/flux"
 )
 
@@ -94,17 +109,21 @@ func (l *StartupLogger) printHeader() {
 		fmt.Printf("%s%s%s%s\n", colorBold, gradient[idx], line, colorReset)
 	}
 
-	fmt.Printf("   %s%sv%s%s\n", colorBold, colorBrightCyan, Version, colorReset)
-	fmt.Printf("   %s%sModern, high-performance Go web framework%s\n", colorBold, colorBrightBlue, colorReset)
+	fmt.Printf("   %s%s%s %s%sv%s%s\n", colorBold, colorWhite, "Flux", colorReset, colorBrightCyan, Version, colorReset)
 	fmt.Printf("   %s%s%s\n", colorBrightCyan, website, colorReset)
 	fmt.Printf("%s   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n", colorBrightCyan, colorReset)
 	fmt.Println()
 }
 
 func (l *StartupLogger) printAppInfo() {
-	fmt.Printf("%s%s▸ Application%s  %s%s%s\n", colorBold, colorBrightPurple, colorReset, colorBold, l.config.Title, colorReset)
-	fmt.Printf("%s%s▸ Description%s %s\n", colorBold, colorBrightPurple, colorReset, l.config.Description)
-	fmt.Printf("%s%s▸ Version%s      %s%s%s\n", colorBold, colorBrightPurple, colorReset, colorBrightCyan, l.config.Version, colorReset)
+	v := l.config.Version
+	if v == "" {
+		v = Version
+	}
+	fmt.Printf("%s%s▸ Application%s  %s%s%s (%s%s%s)\n", colorBold, colorBrightPurple, colorReset, colorBold, l.config.Title, colorReset, colorCyan, v, colorReset)
+	if l.config.Description != "" {
+		fmt.Printf("%s%s▸ Description%s %s\n", colorBold, colorBrightPurple, colorReset, l.config.Description)
+	}
 	fmt.Println()
 }
 

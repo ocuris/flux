@@ -35,7 +35,7 @@ import "github.com/ocuris/flux"
 func main() {
     app := flux.New(flux.Config{
         Title:   "My API",
-        Version: "1.0.0",
+        Version: "1.0.3",
     })
 
     app.Use(flux.Recover())
