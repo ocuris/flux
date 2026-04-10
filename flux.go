@@ -158,9 +158,16 @@ func extractHandler(arg interface{}) HandlerFunc {
 	if h, ok := arg.(HandlerFunc); ok {
 		return h
 	}
-	if v := reflect.ValueOf(arg); v.IsValid() && v.Kind() == reflect.Func && v.Type().ConvertibleTo(handlerType) {
-		return v.Convert(handlerType).Interface().(HandlerFunc)
+	
+	v := reflect.ValueOf(arg)
+	if v.IsValid() && v.Kind() == reflect.Func {
+		if v.Type().ConvertibleTo(handlerType) {
+			return v.Convert(handlerType).Interface().(HandlerFunc)
+		}
+		// The user passed a function, but the signature doesn't match func(*Context) error.
+		panic(fmt.Sprintf("flux: invalid handler signature. Expected func(*flux.Context) error, but got %s", v.Type().String()))
 	}
+
 	return nil
 }
 

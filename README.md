@@ -440,6 +440,7 @@ open http://localhost:8000/docs
 ```
 
 See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) for the complete `DocBuilder` reference.
+See [HELPBOOK.md](./HELPBOOK.md) for production deployment configs, Docker setup, and API network binding logic.
 
 ---
 
