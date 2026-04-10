@@ -1,0 +1,68 @@
+# Go binaries
+/flux
+basic
+auth
+validation
+high-throughput
+advanced
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+*.out
+
+# Go module cache and vendor
+vendor/
+
+# Build output
+dist/
+bin/
+
+# Environment files — NEVER commit secrets
+.env
+.env.*
+!.env.example
+
+# Editor and IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Profiling and trace output
+*.prof
+*.trace
+cpu.prof
+mem.prof
+trace.out
+
+# Generated files
+openapi.json
+
+# Test coverage
+coverage.out
+coverage.html
