@@ -1,7 +1,6 @@
 package flux
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 )
@@ -68,7 +67,7 @@ func (c *Context) JSON(code int, data interface{}) error {
 	if c.written {
 		return nil
 	}
-	body, err := json.Marshal(data)
+	body, err := c.app.encoder.Marshal(data)
 	if err != nil {
 		return err
 	}
@@ -119,7 +118,7 @@ func (c *Context) BindJSON(v interface{}) error {
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, "Failed to read request body", err.Error())
 	}
-	if err := json.Unmarshal(body, v); err != nil {
+	if err := c.app.encoder.Unmarshal(body, v); err != nil {
 		return NewHTTPError(http.StatusBadRequest, "Invalid JSON", err.Error())
 	}
 	if err := NewValidator().Validate(v); err != nil {

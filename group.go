@@ -4,25 +4,31 @@ import (
 	"net/http"
 )
 
-// Group is a collection of routes sharing a common path prefix and optional
-// group-scoped middleware. Groups are created via app.Group(prefix).
-//
-// Middleware execution order for a grouped route:
-//
-//	[global middleware] → [group middleware] → handler
+// Group facilitates route prefixing, shared middleware, and metadata inheritance.
 type Group struct {
 	prefix     string
 	middleware []MiddlewareFunc
+	tags       []string
 	app        *Flux
 }
 
 // newGroup is the internal constructor used by Flux.Group.
-func newGroup(app *Flux, prefix string, middleware ...MiddlewareFunc) *Group {
-	return &Group{
+func newGroup(app *Flux, prefix string, args ...interface{}) *Group {
+	g := &Group{
 		prefix:     prefix,
-		middleware: middleware,
+		middleware: make([]MiddlewareFunc, 0),
+		tags:       make([]string, 0),
 		app:        app,
 	}
+
+	for _, arg := range args {
+		if m, ok := arg.(MiddlewareFunc); ok {
+			g.middleware = append(g.middleware, m)
+		} else if t, ok := arg.(string); ok {
+			g.tags = append(g.tags, t)
+		}
+	}
+	return g
 }
 
 // Use appends group-scoped middleware. These run after global middleware and
@@ -32,16 +38,30 @@ func (g *Group) Use(middleware ...MiddlewareFunc) {
 }
 
 // Group creates a nested group with an additional prefix relative to this group.
-// The parent group's middleware is inherited.
-func (g *Group) Group(prefix string, middleware ...MiddlewareFunc) *Group {
-	// Clone parent middleware slice to avoid mutation across sibling groups
-	inherited := make([]MiddlewareFunc, len(g.middleware))
-	copy(inherited, g.middleware)
-	return &Group{
+// The parent group's tags and middleware are inherited.
+func (g *Group) Group(prefix string, args ...interface{}) *Group {
+	inheritedMid := make([]MiddlewareFunc, len(g.middleware))
+	copy(inheritedMid, g.middleware)
+
+	inheritedTags := make([]string, len(g.tags))
+	copy(inheritedTags, g.tags)
+
+	newG := &Group{
 		prefix:     g.prefix + prefix,
-		middleware: append(inherited, middleware...),
+		middleware: inheritedMid,
+		tags:       inheritedTags,
 		app:        g.app,
 	}
+
+	for _, arg := range args {
+		if m, ok := arg.(MiddlewareFunc); ok {
+			newG.middleware = append(newG.middleware, m)
+		} else if t, ok := arg.(string); ok {
+			newG.tags = append(newG.tags, t)
+		}
+	}
+
+	return newG
 }
 
 // GET registers a GET handler within this group.
@@ -90,6 +110,10 @@ func (g *Group) add(method, path string, args ...interface{}) {
 			doc = d
 			continue
 		}
+		if info, ok := arg.(Info); ok {
+			doc = Doc(info.Summary, info.Description, info.Tags...)
+			continue
+		}
 		if h := extractHandler(arg); h != nil {
 			handler = h
 		}
@@ -105,5 +129,5 @@ func (g *Group) add(method, path string, args ...interface{}) {
 		final = g.middleware[i](final)
 	}
 
-	g.app.addRoute(method, g.prefix+path, final, doc)
+	g.app.addRoute(method, g.prefix+path, final, doc, g.tags)
 }

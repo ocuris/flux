@@ -2,7 +2,7 @@ package flux
 
 import "strconv"
 
-// DocBuilder builds route documentation
+// DocBuilder manages OpenAPI metadata for a route.
 type DocBuilder struct {
 	summary     string
 	description string
@@ -13,6 +13,23 @@ type DocBuilder struct {
 	security    []string
 	metadata    map[string]interface{}
 }
+
+type Info struct {
+	Summary     string
+	Description string
+	Tags        []string
+}
+
+// Param allows chaining parameters directly on an Info struct.
+func (i Info) Param(name, in, description, schemaType string, required bool) *DocBuilder {
+	return Doc(i.Summary, i.Description, i.Tags...).Param(name, in, description, schemaType, required)
+}
+
+// Response allows chaining responses directly on an Info struct.
+func (i Info) Response(code int, description, contentType string, schema interface{}) *DocBuilder {
+	return Doc(i.Summary, i.Description, i.Tags...).Response(code, description, contentType, schema)
+}
+
 
 // Parameter describes a route parameter (path, query, header, etc.)
 type Parameter struct {
@@ -59,7 +76,7 @@ type Schema struct {
 	Required    []string           `json:"required,omitempty"`
 }
 
-// Doc creates a new DocBuilder with summary, description, and tags
+// Doc starts a new DocBuilder with positional arguments.
 func Doc(summary, description string, tags ...string) *DocBuilder {
 	return &DocBuilder{
 		summary:     summary,
@@ -216,7 +233,7 @@ func (d *DocBuilder) ToMap() map[string]interface{} {
 		responses[statusStr] = map[string]interface{}{
 			"description": resp.Description,
 		}
-		
+
 		if resp.ContentType != "" {
 			contentNode := map[string]interface{}{
 				"schema": map[string]interface{}{

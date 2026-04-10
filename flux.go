@@ -2,23 +2,25 @@ package flux
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
 )
 
-// handlerType is the reflect.Type for flux.HandlerFunc, used by extractHandler
-// to accept functions from external packages whose concrete type is
-// func(*flux.Context) error rather than the named flux.HandlerFunc type.
+// handlerType is the reflect type for HandlerFunc. Used to reinterpret 
+// external functions via reflect.Convert during route registration.
 var handlerType = reflect.TypeOf((*HandlerFunc)(nil)).Elem()
 
-// HandlerFunc is the core handler type. Returning a non-nil error triggers
-// the framework's error handler (see handleError).
+// HandlerFunc is the core request handler signature. 
 type HandlerFunc func(*Context) error
 
 // MiddlewareFunc wraps a HandlerFunc with additional behaviour.
@@ -27,7 +29,7 @@ type MiddlewareFunc func(HandlerFunc) HandlerFunc
 // StartOption is a functional option applied to the underlying *http.Server.
 type StartOption func(*http.Server)
 
-// Map is a convenience alias for map[string]any used in JSON responses.
+// Map is a shortcut for map[string]any, used primarily for JSON payloads.
 type Map map[string]any
 
 // Flux is the main framework instance.
@@ -40,14 +42,37 @@ type Flux struct {
 	openapi       *OpenAPISpec
 	server        *http.Server
 	startupLogger *StartupLogger
+	encoder       Encoder
 
 	registeredRoutes []RouteInfo
 	routesMu         sync.RWMutex
 	stopChan         chan struct{}
 }
 
-// New creates a new Flux application with the provided Config.
-func New(cfg Config) *Flux {
+// Encoder defines the JSON serialization interface.
+type Encoder interface {
+	Marshal(v any) ([]byte, error)
+	Unmarshal(data []byte, v any) error
+}
+
+type defaultEncoder struct{}
+
+func (e defaultEncoder) Marshal(v any) ([]byte, error)   { return json.Marshal(v) }
+func (e defaultEncoder) Unmarshal(d []byte, v any) error { return json.Unmarshal(d, v) }
+
+// Option is a functional configuration for the Flux app.
+type Option func(*Flux)
+
+// WithEncoder allows providing a custom JSON encoder.
+func WithEncoder(e Encoder) Option {
+	return func(f *Flux) {
+		f.encoder = e
+	}
+}
+
+// New initializes a Flux instance. Accepts optional configurators 
+// for future-proofing (e.g. custom encoders).
+func New(cfg Config, opts ...Option) *Flux {
 	app := &Flux{
 		config:           cfg,
 		middleware:       make([]MiddlewareFunc, 0),
@@ -56,6 +81,11 @@ func New(cfg Config) *Flux {
 		startupLogger:    NewStartupLogger(cfg),
 		registeredRoutes: make([]RouteInfo, 0),
 		stopChan:         make(chan struct{}),
+		encoder:          defaultEncoder{},
+	}
+
+	for _, opt := range opts {
+		opt(app)
 	}
 
 	app.pool = &sync.Pool{
@@ -119,10 +149,10 @@ func (f *Flux) OPTIONS(path string, args ...interface{}) {
 	f.addDocumentedRoute(http.MethodOptions, path, args...)
 }
 
-// Group creates a route group with a shared path prefix and optional
-// group-scoped middleware. See group.go for the full Group API.
-func (f *Flux) Group(prefix string, middleware ...MiddlewareFunc) *Group {
-	return newGroup(f, prefix, middleware...)
+// Group creates a route group with a shared prefix. Arguments can include
+// MiddlewareFunc or string (for automatic documentation tags).
+func (f *Flux) Group(prefix string, args ...interface{}) *Group {
+	return newGroup(f, prefix, args...)
 }
 
 // addDocumentedRoute parses variadic args for (HandlerFunc, *DocBuilder) in
@@ -136,6 +166,10 @@ func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
 			doc = d
 			continue
 		}
+		if info, ok := arg.(Info); ok {
+			doc = Doc(info.Summary, info.Description, info.Tags...)
+			continue
+		}
 		if h := extractHandler(arg); h != nil {
 			handler = h
 		}
@@ -145,7 +179,62 @@ func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
 		panic(fmt.Sprintf("flux: no handler provided for %s %s", method, path))
 	}
 
-	f.addRoute(method, path, handler, doc)
+	f.addRoute(method, path, handler, doc, nil)
+}
+
+// addRoute maps a handler and its metadata to the internal router.
+func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilder, groupTags []string) {
+	// 1. Auto-Documentation Logic
+	if doc == nil {
+		doc = Doc("", "")
+	}
+
+	// 1.a Auto-Summary from Handler Name
+	if doc.summary == "" {
+		doc.summary = getFunctionName(handler)
+	}
+
+	// 1.b Auto-Tagging from Group
+	if len(groupTags) > 0 {
+		tagMap := make(map[string]struct{})
+		for _, t := range groupTags {
+			tagMap[t] = struct{}{}
+		}
+		for _, t := range doc.tags {
+			tagMap[t] = struct{}{}
+		}
+		newTags := make([]string, 0, len(tagMap))
+		for t := range tagMap {
+			newTags = append(newTags, t)
+		}
+		doc.tags = newTags
+	}
+
+	// 2. Wrap the core handler so errors are resolved at the innermost layer.
+	errorHandled := func(c *Context) error {
+		if err := handler(c); err != nil {
+			f.handleError(c, err)
+		}
+		return nil
+	}
+
+	// 3. Compose framework/group middleware around the error-handling wrapper.
+	final := HandlerFunc(errorHandled)
+	for i := len(f.middleware) - 1; i >= 0; i-- {
+		final = f.middleware[i](final)
+	}
+
+	f.router.Add(method, path, final)
+
+	f.routesMu.Lock()
+	f.registeredRoutes = append(f.registeredRoutes, RouteInfo{
+		Method: method,
+		Path:   path,
+		Doc:    doc,
+	})
+	f.routesMu.Unlock()
+
+	f.startupLogger.AddRoute(method, path, doc)
 }
 
 // extractHandler attempts to obtain a HandlerFunc from an interface{} value.
@@ -214,8 +303,6 @@ func (f *Flux) Start(addr string, opts ...StartOption) error {
 	case <-f.stopChan:
 		return nil
 	}
-
-	return nil
 }
 
 // Stop signals the server to begin its graceful shutdown sequence using the
@@ -319,37 +406,27 @@ func (f *Flux) handleError(c *Context, err error) {
 // when a handler returns an HTTPError, c.statusCode is set (via c.JSON)
 // BEFORE outer middleware (e.g. Logger) unwinds. This guarantees Logger
 // always logs the correct HTTP status code.
-//
-// IMPORTANT: middleware registered via Use() after this call will NOT apply
-// to this route. Always call Use() before registering routes.
-func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilder) {
-	// Wrap the raw handler so errors are resolved at the innermost layer.
-	// Middleware wraps outside this, so when it unwinds c.statusCode is set.
-	errorHandled := func(c *Context) error {
-		err := handler(c)
-		if err != nil {
-			f.handleError(c, err)
+func getFunctionName(i interface{}) string {
+	fn := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+	parts := strings.Split(fn, ".")
+	raw := parts[len(parts)-1]
+	// Remove "-fm" suffix for bound methods
+	raw = strings.TrimSuffix(raw, "-fm")
+	return camelToSpaces(raw)
+}
+
+func camelToSpaces(s string) string {
+	if s == "" {
+		return ""
+	}
+	var res strings.Builder
+	for i, r := range s {
+		if i > 0 && unicode.IsUpper(r) {
+			res.WriteRune(' ')
 		}
-		return nil
+		res.WriteRune(r)
 	}
-
-	// Compose global middleware around the error-handling wrapper.
-	final := HandlerFunc(errorHandled)
-	for i := len(f.middleware) - 1; i >= 0; i-- {
-		final = f.middleware[i](final)
-	}
-
-	f.router.Add(method, path, final)
-
-	f.routesMu.Lock()
-	f.registeredRoutes = append(f.registeredRoutes, RouteInfo{
-		Method: method,
-		Path:   path,
-		Doc:    doc,
-	})
-	f.routesMu.Unlock()
-
-	f.startupLogger.AddRoute(method, path, doc)
+	return res.String()
 }
 
 // HTTPError represents a structured HTTP error that can be returned from

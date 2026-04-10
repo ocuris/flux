@@ -141,76 +141,28 @@ func main() {
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 	}))
 
-	// ── Routes ───────────────────────────────────────────────────────────────
+	// Meta Group
+	meta := app.Group("/", "System")
+	meta.GET("/", handleRoot)   // Auto-summary: "Handle Root"
+	meta.GET("/health", handleHealth) // Auto-summary: "Handle Health"
 
-	app.GET("/", flux.Doc(
-		"Root",
-		"Returns a welcome message and links to documentation.",
-		"meta",
-	), handleRoot)
+	// Users Group - Automatically tagged as "Users"
+	users := app.Group("/users", "Users")
 
-	app.GET("/health", flux.Doc(
-		"Health Check",
-		"Used by load balancers and monitoring tools to verify the service is alive.",
-		"meta",
-	), handleHealth)
+	users.GET("", listUsers, flux.Doc("List Users", "Returns all users. Supports optional search").
+		Param("q", "query", "Search term", "string", false))
 
-	// Users CRUD
-	app.GET("/users", flux.Doc(
-		"List Users",
-		"Returns all users. Supports optional full-text search via ?q=.",
-		"users",
-	).
-		Param("q", "query", "Full-text search term (name or email)", "string", false).
-		Response(200, "Array of users", "application/json", nil),
-		listUsers,
-	)
+	users.GET("/:id", getUser, flux.Doc("Get User Details", "Returns a single user by numeric ID").
+		Param("id", "path", "User ID", "integer", true))
 
-	app.GET("/users/:id", flux.Doc(
-		"Get User",
-		"Returns a single user by numeric ID.",
-		"users",
-	).
-		Param("id", "path", "Numeric user ID", "integer", true).
-		Response(200, "User object", "application/json", nil).
-		Response(400, "Invalid ID format", "application/json", nil).
-		Response(404, "User not found", "application/json", nil),
-		getUser,
-	)
+	users.POST("", createUser, flux.Doc("Create User", "Creates a new user record").
+		RequestBody("User payload", CreateUserRequest{}))
 
-	app.POST("/users", flux.Doc(
-		"Create User",
-		"Creates a new user. Validates name, email, and age.",
-		"users",
-	).
-		RequestBody("User creation payload", CreateUserRequest{Name: "Alice", Email: "alice@example.com", Age: 28}).
-		Response(201, "Created user", "application/json", nil).
-		Response(400, "Validation error", "application/json", nil),
-		createUser,
-	)
+	users.PUT("/:id", updateUser, flux.Doc("Update User", "Modifies an existing user").
+		Param("id", "path", "User ID", "integer", true))
 
-	app.PUT("/users/:id", flux.Doc(
-		"Update User",
-		"Partially updates a user. Only non-zero fields are applied.",
-		"users",
-	).
-		Param("id", "path", "Numeric user ID", "integer", true).
-		RequestBody("Fields to update", UpdateUserRequest{Name: "Alice Updated"}).
-		Response(200, "Updated user", "application/json", nil).
-		Response(404, "User not found", "application/json", nil),
-		updateUser,
-	)
-
-	app.DELETE("/users/:id", flux.Doc(
-		"Delete User",
-		"Permanently removes a user by ID.",
-		"users",
-	).
-		Param("id", "path", "Numeric user ID", "integer", true).
-		Response(204, "Deleted — no body", "application/json", nil).
-		Response(404, "User not found", "application/json", nil),
-		deleteUser,
-	)
+	users.DELETE("/:id", deleteUser, flux.Doc("Delete User", "Removes a user record").
+		Param("id", "path", "User ID", "integer", true))
 
 	if err := app.Start(":8000"); err != nil {
 		panic(err)
