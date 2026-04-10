@@ -1,13 +1,23 @@
 name: Auto Tag Release
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
 
+# Grant explicit permission to this action to push Tags and Releases
+permissions:
+  contents: write
+
 jobs:
   tag-and-release:
+    # Only run this release action if the Pull Request was actually MERGED
+    # (closing a PR without merging it will abort the release).
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     
     # We only want to generate a new tag on PR merges, not on raw commits to main if we can help it, 
     # but the action handles this gracefully.
