@@ -39,3 +39,15 @@ This script will:
 ## 5. Submitting a Pull Request
 
 Fill out the Pull Request template completely. Ensure exactly what you changed and why is clearly documented. Once merged into `main`, our GitHub Actions will automatically test and generate a new version tag for your release!
+
+## 6. PR Naming & Auto-Releases (Conventional Commits)
+
+This repository strictly follows **Semantic Versioning** (`vMAJOR.MINOR.PATCH`). 
+We use an automated GitHub Action that reads your merged Pull Request title to calculate the next module version. 
+
+Please format your PR titles using **Conventional Commits**:
+* **`fix: ...`** — Bumps the Patch version (e.g. `v1.0.0` -> `v1.0.1`). Use this for bug fixes.
+* **`feat: ...`** — Bumps the Minor version (e.g. `v1.0.1` -> `v1.1.0`). Use this for new features or API additions.
+* **`feat!: ...`** or **`BREAKING CHANGE: ...`** — Bumps the Major version (e.g. `v1.1.0` -> `v2.0.0`). Use this ONLY if your change will break existing users' code.
+
+If you don't use a prefix, the system defaults to a safe `patch` bump.
