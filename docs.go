@@ -30,6 +30,11 @@ func (i Info) Response(code int, description, contentType string, schema interfa
 	return Doc(i.Summary, i.Description, i.Tags...).Response(code, description, contentType, schema)
 }
 
+// RequestBody allows chaining a request body schema directly on an Info struct.
+func (i Info) RequestBody(description string, schema interface{}) *DocBuilder {
+	return Doc(i.Summary, i.Description, i.Tags...).RequestBody(description, schema)
+}
+
 
 // Parameter describes a route parameter (path, query, header, etc.)
 type Parameter struct {
