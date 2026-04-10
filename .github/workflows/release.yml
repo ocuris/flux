@@ -28,7 +28,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: patch # Bumps 1.0.0 to 1.0.1 by default
+          default_bump: false # Do not auto-bump if prefix is docs:, chore:, or missing
           release_branches: main
           
       - name: Create a GitHub release

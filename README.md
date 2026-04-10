@@ -1,11 +1,19 @@
-# Flux — Go Web Framework
+<div align="center">
+  
+<h1>⚡️ Flux Framework</h1>
 
-**A lightweight, production-ready web framework for Go.**
+**A modern, production-ready REST web framework for Go.**
 
-Flux gives you trie-based routing, automatic OpenAPI 3.0 docs, a JWT-ready middleware stack, and graceful shutdown — all on top of the standard `net/http` library with zero mandatory dependencies beyond the JWT library.
+[![Go Reference](https://pkg.go.dev/badge/github.com/ocuris/flux.svg)](https://pkg.go.dev/github.com/ocuris/flux)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ocuris/flux)](https://goreportcard.com/report/github.com/ocuris/flux)
+[![Build Status](https://github.com/ocuris/flux/actions/workflows/ci.yml/badge.svg)](https://github.com/ocuris/flux/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 
-[![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue)](https://golang.org)
-[![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
+*Flux gives you trie-based zero-allocation routing, automatic OpenAPI 3.0 generation, native visually-stunning **Scalar AI** documentation, a JWT-ready middleware stack, and graceful shutdowns — all on top of the standard `net/http` package.*
+
+</div>
+
+---
 
 ---
 
