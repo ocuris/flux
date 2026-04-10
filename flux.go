@@ -43,6 +43,7 @@ type Flux struct {
 
 	registeredRoutes []RouteInfo
 	routesMu         sync.RWMutex
+	stopChan         chan struct{}
 }
 
 // New creates a new Flux application with the provided Config.
@@ -54,6 +55,7 @@ func New(cfg Config) *Flux {
 		router:           NewRouter(),
 		startupLogger:    NewStartupLogger(cfg),
 		registeredRoutes: make([]RouteInfo, 0),
+		stopChan:         make(chan struct{}),
 	}
 
 	app.pool = &sync.Pool{
@@ -158,7 +160,7 @@ func extractHandler(arg interface{}) HandlerFunc {
 	if h, ok := arg.(HandlerFunc); ok {
 		return h
 	}
-	
+
 	v := reflect.ValueOf(arg)
 	if v.IsValid() && v.Kind() == reflect.Func {
 		if v.Type().ConvertibleTo(handlerType) {
@@ -202,12 +204,33 @@ func (f *Flux) Start(addr string, opts ...StartOption) error {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	fmt.Println("\n⏹  Shutting down server...")
+	select {
+	case <-quit:
+		fmt.Println("\n⏹  Shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return f.Stop(ctx)
+	case <-f.stopChan:
+		return nil
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	return nil
+}
+
+// Stop signals the server to begin its graceful shutdown sequence using the
+// provided context for timeout/deadline control.
+func (f *Flux) Stop(ctx context.Context) error {
+	if f.server == nil {
+		return nil
+	}
+
+	// Signal Start() to unblock if it's still waiting
+	select {
+	case <-f.stopChan:
+	default:
+		close(f.stopChan)
+	}
 
 	if err := f.server.Shutdown(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "flux: forced shutdown: %v\n", err)

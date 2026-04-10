@@ -142,9 +142,29 @@ c.SetHeader("X-Custom", "value")
 c.SetCookie(&http.Cookie{Name: "session", Value: "abc", HttpOnly: true, Secure: true})
 ```
 
+### Server Lifecycle & Shutdown
+
+`app.Start(addr)` is blocking. It automatically listens for `SIGINT` (Ctrl+C) and `SIGTERM` and initiates a 30-second graceful shutdown sequence.
+
+To stop the server programmatically (e.g., in integration tests):
+
+```go
+go app.Start(":8080") // Start in background
+
+// ... later
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+
+if err := app.Stop(ctx); err != nil {
+    log.Fatalf("Server forced to shutdown: %v", err)
+}
+```
+
 ---
 
 ## Middleware
+
+### Middleware State
 
 Register middleware with `app.Use()` **before** the routes it should apply to. Middleware composes into each handler at **registration time**, not per-request.
 
