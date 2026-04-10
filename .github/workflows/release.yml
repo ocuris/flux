@@ -1,8 +1,7 @@
 name: Auto Tag Release
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - main
 
@@ -12,9 +11,6 @@ permissions:
 
 jobs:
   tag-and-release:
-    # Only run this release action if the Pull Request was actually MERGED
-    # (closing a PR without merging it will abort the release).
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
