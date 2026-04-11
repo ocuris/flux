@@ -1,5 +1,5 @@
 <div align="center">
-  
+
 <h1>⚡️ Flux Framework</h1>
 
 **A modern, production-ready REST web framework for Go.**
@@ -12,6 +12,8 @@
 *Flux gives you trie-based zero-allocation routing, automatic OpenAPI 3.0 generation, native visually-stunning **Scalar AI** documentation, a JWT-ready middleware stack, and graceful shutdowns — all on top of the standard `net/http` package.*
 
 </div>
+
+![Flux Overview](./assets/dark_mode.png)
 
 ---
 
@@ -26,6 +28,8 @@ go get github.com/ocuris/flux
 ---
 
 ## Hello World
+
+![Flux Banner](./assets/banner.png)
 
 ```go
 package main
@@ -296,8 +300,20 @@ flux.ValidateStringLength(s, 3, 50) // length in [min,max]
 
 ## OpenAPI 3.0 Documentation
 
-Flux generates `/openapi.json` and serves Swagger UI at `/docs` automatically.  
-Add `flux.Doc()` to any route to populate the spec:
+Flux automatically generates a complete OpenAPI 3.0 specification for your API. It also includes a stunning, built-in **Scalar AI** documentation interface accessible at `/docs`.
+
+<details>
+<summary>📸 <b>Click to see Visual Overlays (Light & Dark Mode)</b></summary>
+
+### Endpoint Explorer
+![Endpoints View](./assets/endpoints.png)
+
+### Dark Mode & Interactive Testing
+![Dark Mode View](./assets/dark_mode.png)
+
+</details>
+
+Add `flux.Doc()` or `flux.Info{}` to any route to populate the spec:
 
 ```go
 app.GET("/users/:id",
