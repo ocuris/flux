@@ -3,6 +3,7 @@ package flux
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // RouteNode is one node in the routing trie.
@@ -20,26 +21,38 @@ type CacheEntry struct {
 	params  []Param
 }
 
-// Router implements a trie-based HTTP router with a static-route cache.
+// Router implements a trie-based HTTP router with an atomic static-route lookup.
 type Router struct {
-	root  *RouteNode
-	cache map[string]*CacheEntry
-	mu    sync.RWMutex
+	root *RouteNode
+	mu   sync.Mutex // protects trie and static map updates
 
-	// Method-specific optimized static maps for O(1) lock-free matching
-	staticMethods map[string]map[string]HandlerFunc
+	// Method-specific atomic maps for lock-free O(1) lookup
+	staticGET    atomic.Pointer[map[string]HandlerFunc]
+	staticPOST   atomic.Pointer[map[string]HandlerFunc]
+	staticPUT    atomic.Pointer[map[string]HandlerFunc]
+	staticDELETE atomic.Pointer[map[string]HandlerFunc]
+	staticPATCH  atomic.Pointer[map[string]HandlerFunc]
+	staticOTHER  atomic.Pointer[map[string]map[string]HandlerFunc]
 }
 
 // NewRouter creates a new empty Router.
 func NewRouter() *Router {
-	return &Router{
+	r := &Router{
 		root: &RouteNode{
 			static:   make(map[string]*RouteNode),
 			handlers: make(map[string]HandlerFunc),
 		},
-		cache:         make(map[string]*CacheEntry),
-		staticMethods: make(map[string]map[string]HandlerFunc),
 	}
+	empty := make(map[string]HandlerFunc)
+	r.staticGET.Store(&empty)
+	r.staticPOST.Store(&empty)
+	r.staticPUT.Store(&empty)
+	r.staticDELETE.Store(&empty)
+	r.staticPATCH.Store(&empty)
+
+	other := make(map[string]map[string]HandlerFunc)
+	r.staticOTHER.Store(&other)
+	return r
 }
 
 // Add registers method+path in the trie with the given (already middleware-composed) handler.
@@ -92,16 +105,50 @@ func (r *Router) Add(method, path string, handler HandlerFunc) {
 
 	node.handlers[method] = handler
 
-	// Also add to the optimized static map
+	// Update method-specific atomic map
 	r.mu.Lock()
-	if r.staticMethods[method] == nil {
-		r.staticMethods[method] = make(map[string]HandlerFunc)
+	defer r.mu.Unlock()
+
+	switch method {
+	case "GET":
+		r.staticGET.Store(r.cloneAndAdd(r.staticGET.Load(), path, handler))
+	case "POST":
+		r.staticPOST.Store(r.cloneAndAdd(r.staticPOST.Load(), path, handler))
+	case "PUT":
+		r.staticPUT.Store(r.cloneAndAdd(r.staticPUT.Load(), path, handler))
+	case "DELETE":
+		r.staticDELETE.Store(r.cloneAndAdd(r.staticDELETE.Load(), path, handler))
+	case "PATCH":
+		r.staticPATCH.Store(r.cloneAndAdd(r.staticPATCH.Load(), path, handler))
+	default:
+		oldOther := r.staticOTHER.Load()
+		newOther := make(map[string]map[string]HandlerFunc)
+		if oldOther != nil {
+			for m, inner := range *oldOther {
+				newInner := make(map[string]HandlerFunc)
+				for p, h := range inner {
+					newInner[p] = h
+				}
+				newOther[m] = newInner
+			}
+		}
+		if newOther[method] == nil {
+			newOther[method] = make(map[string]HandlerFunc)
+		}
+		newOther[method][path] = handler
+		r.staticOTHER.Store(&newOther)
 	}
-	r.staticMethods[method][path] = handler
-	
-	// Invalidate any cached entry for this route
-	delete(r.cache, method+" "+path)
-	r.mu.Unlock()
+}
+
+func (r *Router) cloneAndAdd(old *map[string]HandlerFunc, path string, handler HandlerFunc) *map[string]HandlerFunc {
+	newMap := make(map[string]HandlerFunc)
+	if old != nil {
+		for k, v := range *old {
+			newMap[k] = v
+		}
+	}
+	newMap[path] = handler
+	return &newMap
 }
 
 // Match finds the handler for method+path.
@@ -110,27 +157,56 @@ func (r *Router) Add(method, path string, handler HandlerFunc) {
 //   - handler:           the matched HandlerFunc (nil if not found)
 //   - params:            path parameters extracted from the URL
 //   - methodNotAllowed:  true when the path matched but not for this method (→ 405)
+//
 // Match finds the handler for method+path.
 func (r *Router) Match(method, path string, params *[]Param) (HandlerFunc, bool) {
-	// 1. FASTEST PATH: Lock-free Method-Specific Static Lookup
-	// We check for purely static routes first.
-	if m, ok := r.staticMethods[method]; ok {
-		if h, ok := m[path]; ok {
-			return h, false
+	// 1. FASTEST PATH: Method-specific single lookup
+	switch method {
+	case "GET":
+		if m := r.staticGET.Load(); m != nil {
+			if h, ok := (*m)[path]; ok {
+				return h, false
+			}
+		}
+	case "POST":
+		if m := r.staticPOST.Load(); m != nil {
+			if h, ok := (*m)[path]; ok {
+				return h, false
+			}
+		}
+	case "PUT":
+		if m := r.staticPUT.Load(); m != nil {
+			if h, ok := (*m)[path]; ok {
+				return h, false
+			}
+		}
+	case "DELETE":
+		if m := r.staticDELETE.Load(); m != nil {
+			if h, ok := (*m)[path]; ok {
+				return h, false
+			}
+		}
+	case "PATCH":
+		if m := r.staticPATCH.Load(); m != nil {
+			if h, ok := (*m)[path]; ok {
+				return h, false
+			}
+		}
+	default:
+		if m := r.staticOTHER.Load(); m != nil {
+			if inner, ok := (*m)[method]; ok {
+				if h, ok := inner[path]; ok {
+					return h, false
+				}
+			}
 		}
 	}
 
-	// 2. Slow path: Trie Traversal
+	// Path is already cleaned by ServeHTTP
 	node := r.root
-	isStatic := true
-
-	// Manual segmentation to avoid strings.Split
 	search := path
-	if len(search) > 1 && search[0] == '/' {
+	if len(search) > 0 && search[0] == '/' {
 		search = search[1:]
-	}
-	if len(search) > 0 && search[len(search)-1] == '/' {
-		search = search[:len(search)-1]
 	}
 
 	if search == "" || search == "/" {
@@ -153,19 +229,16 @@ func (r *Router) Match(method, path string, params *[]Param) (HandlerFunc, bool)
 			}
 			segment := search[start:i]
 
-			// a) Static match
+			isStatic := false
+			_ = isStatic // Silence if unused (only if we need it for caching, which we removed)
 			if next, ok := node.static[segment]; ok {
 				node = next
 			} else if node.param != nil {
-				// b) Param match
 				*params = append(*params, Param{Key: node.param.paramKey, Value: segment})
 				node = node.param
-				isStatic = false
 			} else if node.wildcard != nil {
-				// c) Wildcard match
 				*params = append(*params, Param{Key: "*", Value: search[start:]})
 				node = node.wildcard
-				isStatic = false
 				start = len(search)
 				break
 			} else {
@@ -182,13 +255,6 @@ func (r *Router) Match(method, path string, params *[]Param) (HandlerFunc, bool)
 			return nil, true
 		}
 		return nil, false
-	}
-
-	// Cache purely static routes
-	if isStatic {
-		r.mu.Lock()
-		r.cache[method+" "+path] = &CacheEntry{handler: handler, params: nil}
-		r.mu.Unlock()
 	}
 
 	return handler, false

@@ -1,10 +1,12 @@
 package bench
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/gofiber/fiber/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/ocuris/flux"
@@ -163,6 +165,18 @@ func BenchmarkParallel_Fiber(b *testing.B) {
 		req := httptest.NewRequest("GET", "/parallel", nil)
 		for pb.Next() {
 			_, _ = f.Test(req)
+		}
+	})
+}
+
+func BenchmarkParallel_Chi(b *testing.B) {
+	r := chi.NewRouter()
+	r.Get("/parallel", func(w http.ResponseWriter, r *http.Request) {})
+	b.RunParallel(func(pb *testing.PB) {
+		req := httptest.NewRequest("GET", "/parallel", nil)
+		w := httptest.NewRecorder()
+		for pb.Next() {
+			r.ServeHTTP(w, req)
 		}
 	})
 }

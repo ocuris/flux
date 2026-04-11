@@ -1,7 +1,9 @@
 package flux
 
 import (
+	"fmt"
 	"net/http"
+	"reflect"
 )
 
 // Group facilitates route prefixing, shared middleware, and metadata inheritance.
@@ -99,11 +101,31 @@ func (g *Group) OPTIONS(path string, args ...interface{}) {
 	g.add(http.MethodOptions, path, args...)
 }
 
+// Any registers a route for ALL standard HTTP methods within this group.
+func (g *Group) Any(path string, args ...interface{}) {
+	methods := []string{
+		http.MethodGet, http.MethodPost, http.MethodPut,
+		http.MethodDelete, http.MethodPatch, http.MethodHead,
+		http.MethodOptions,
+	}
+	for _, m := range methods {
+		g.add(m, path, args...)
+	}
+}
+
+// Match registers a route for a specific set of HTTP methods within this group.
+func (g *Group) Match(methods []string, path string, args ...interface{}) {
+	for _, m := range methods {
+		g.add(m, path, args...)
+	}
+}
+
 // add parses the variadic args, wraps the handler with group middleware, and
 // delegates to the Flux app's addRoute (which composes global middleware).
 func (g *Group) add(method, path string, args ...interface{}) {
 	var doc *DocBuilder
 	var handler HandlerFunc
+	var mws []MiddlewareFunc
 
 	for _, arg := range args {
 		if d, ok := arg.(*DocBuilder); ok {
@@ -114,8 +136,24 @@ func (g *Group) add(method, path string, args ...interface{}) {
 			doc = Doc(info.Summary, info.Description, info.Tags...)
 			continue
 		}
+		
+		// Attempt to extract handler or middleware
 		if h := extractHandler(arg); h != nil {
 			handler = h
+			continue
+		}
+		
+		// If it's not a handler, maybe it's a middleware?
+		v := reflect.ValueOf(arg)
+		if v.IsValid() && v.Kind() == reflect.Func {
+			t := v.Type()
+			if t.NumIn() == 1 && t.NumOut() == 1 && 
+			   t.In(0).ConvertibleTo(handlerType) && 
+			   t.Out(0).ConvertibleTo(handlerType) {
+				mws = append(mws, v.Convert(reflect.TypeOf((*MiddlewareFunc)(nil)).Elem()).Interface().(MiddlewareFunc))
+				continue
+			}
+			panic(fmt.Sprintf("flux: invalid function signature for %s %s. Expected HandlerFunc or MiddlewareFunc, but got %s", method, path, t.String()))
 		}
 	}
 
@@ -123,7 +161,12 @@ func (g *Group) add(method, path string, args ...interface{}) {
 		panic("flux: no handler provided for " + method + " " + g.prefix + path)
 	}
 
-	// Apply group-scoped middleware (runs after global middleware)
+	// 1. Apply route-specific middleware
+	for i := len(mws) - 1; i >= 0; i-- {
+		handler = mws[i](handler)
+	}
+
+	// 2. Apply group-scoped middleware
 	final := handler
 	for i := len(g.middleware) - 1; i >= 0; i-- {
 		final = g.middleware[i](final)

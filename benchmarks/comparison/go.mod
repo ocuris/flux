@@ -6,6 +6,7 @@ replace github.com/ocuris/flux => ../../
 
 require (
 	github.com/gin-gonic/gin v1.12.0
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/labstack/echo/v4 v4.15.1
 	github.com/ocuris/flux v0.0.0-00010101000000-000000000000

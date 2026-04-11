@@ -100,7 +100,7 @@ func New(cfg Config, opts ...Option) *Flux {
 		New: func() interface{} {
 			return &Context{
 				app:    app,
-				params: make([]Param, 0, 8),
+				params: make([]Param, 0, 16),
 			}
 		},
 	}
@@ -156,6 +156,25 @@ func (f *Flux) OPTIONS(path string, args ...interface{}) {
 	f.addDocumentedRoute(http.MethodOptions, path, args...)
 }
 
+// Any registers a route for ALL standard HTTP methods.
+func (f *Flux) Any(path string, args ...interface{}) {
+	methods := []string{
+		http.MethodGet, http.MethodPost, http.MethodPut,
+		http.MethodDelete, http.MethodPatch, http.MethodHead,
+		http.MethodOptions,
+	}
+	for _, m := range methods {
+		f.addDocumentedRoute(m, path, args...)
+	}
+}
+
+// Match registers a route for a specific set of HTTP methods.
+func (f *Flux) Match(methods []string, path string, args ...interface{}) {
+	for _, m := range methods {
+		f.addDocumentedRoute(strings.ToUpper(m), path, args...)
+	}
+}
+
 // Group creates a route group with a shared prefix. Arguments can include
 // MiddlewareFunc or string (for automatic documentation tags).
 func (f *Flux) Group(prefix string, args ...interface{}) *Group {
@@ -167,6 +186,7 @@ func (f *Flux) Group(prefix string, args ...interface{}) *Group {
 func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
 	var doc *DocBuilder
 	var handler HandlerFunc
+	var mws []MiddlewareFunc
 
 	for _, arg := range args {
 		if d, ok := arg.(*DocBuilder); ok {
@@ -177,13 +197,39 @@ func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
 			doc = Doc(info.Summary, info.Description, info.Tags...)
 			continue
 		}
+		
+		// Attempt to extract handler or middleware
 		if h := extractHandler(arg); h != nil {
 			handler = h
+			continue
+		}
+		
+		// If it's not a handler, maybe it's a middleware?
+		// We use reflection here because anonymous functions might not 
+		// satisfy the Type Assertion until converted.
+		v := reflect.ValueOf(arg)
+		if v.IsValid() && v.Kind() == reflect.Func {
+			// Check if it's a MiddlewareFunc: func(HandlerFunc) HandlerFunc
+			t := v.Type()
+			if t.NumIn() == 1 && t.NumOut() == 1 && 
+			   t.In(0).ConvertibleTo(handlerType) && 
+			   t.Out(0).ConvertibleTo(handlerType) {
+				mws = append(mws, v.Convert(reflect.TypeOf((*MiddlewareFunc)(nil)).Elem()).Interface().(MiddlewareFunc))
+				continue
+			}
+			
+			// If it's a function but doesn't match anything, THEN we panic
+			panic(fmt.Sprintf("flux: invalid function signature for %s %s. Expected HandlerFunc or MiddlewareFunc, but got %s", method, path, t.String()))
 		}
 	}
 
 	if handler == nil {
 		panic(fmt.Sprintf("flux: no handler provided for %s %s", method, path))
+	}
+
+	// Apply route-specific middleware
+	for i := len(mws) - 1; i >= 0; i-- {
+		handler = mws[i](handler)
 	}
 
 	f.addRoute(method, path, handler, doc, nil)
@@ -217,7 +263,6 @@ func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilde
 		doc.tags = newTags
 	}
 
-	// 2. Wrap the core handler so errors are resolved at the innermost layer.
 	errorHandled := func(c *Context) error {
 		if err := handler(c); err != nil {
 			f.handleError(c, err)
@@ -225,7 +270,6 @@ func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilde
 		return nil
 	}
 
-	// 3. Compose framework/group middleware around the error-handling wrapper.
 	final := HandlerFunc(errorHandled)
 	for i := len(f.middleware) - 1; i >= 0; i-- {
 		final = f.middleware[i](final)
@@ -262,8 +306,6 @@ func extractHandler(arg interface{}) HandlerFunc {
 		if v.Type().ConvertibleTo(handlerType) {
 			return v.Convert(handlerType).Interface().(HandlerFunc)
 		}
-		// The user passed a function, but the signature doesn't match func(*Context) error.
-		panic(fmt.Sprintf("flux: invalid handler signature. Expected func(*flux.Context) error, but got %s", v.Type().String()))
 	}
 
 	return nil
@@ -359,31 +401,14 @@ func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.written = false
 	c.params = c.params[:0]
 
-	defer func() {
-		// 1. Built-in Panic Recovery (Safety Net)
-		if r := recover(); r != nil {
-			err, ok := r.(error)
-			if !ok {
-				err = fmt.Errorf("%v", r)
-			}
-			
-			// Log the panic with stack trace for debugging
-			stack := make([]byte, 1024)
-			length := runtime.Stack(stack, false)
-			fmt.Fprintf(os.Stderr, "[PANIC RECOVER] %v\n%s\n", err, stack[:length])
-			
-			f.handleError(c, err)
-		}
-		
-		// 2. Resource Cleanup (Pooled memory return)
-		c.reset()
-		f.pool.Put(c)
-	}()
+	// Note: defer was removed to eliminate overhead in the hot path. 
+	// Panic recovery is now the responsibility of the recovery middleware.
+	// We MUST manually return the context to the pool at every exit point.
 
 	// 3. Path Normalisation (Security: Prevents path traversal attacks)
 	path := r.URL.Path
 	if len(path) > 1 && path[len(path)-1] == '/' {
-		path = path[:len(path)-1] // Remove trailing slash
+		path = path[:len(path)-1]
 	}
 
 	// 4. Match route.
@@ -391,16 +416,28 @@ func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if methodNotAllowed {
 		_ = c.JSON(http.StatusMethodNotAllowed, Map{"error": "method not allowed"})
+		c.reset()
+		f.pool.Put(c)
 		return
 	}
 	if handler == nil {
 		_ = c.JSON(http.StatusNotFound, Map{
 			"error": fmt.Sprintf("endpoint '%s' not found", path),
 		})
+		c.reset()
+		f.pool.Put(c)
 		return
 	}
 
-	// 5. Apply pre-routing middleware (Rewriting, Global Guards, etc.)
+	if len(f.preMiddleware) == 0 {
+		if err := handler(c); err != nil {
+			f.handleError(c, err)
+		}
+		c.reset()
+		f.pool.Put(c)
+		return
+	}
+
 	final := handler
 	for i := len(f.preMiddleware) - 1; i >= 0; i-- {
 		final = f.preMiddleware[i](final)
@@ -409,6 +446,8 @@ func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := final(c); err != nil {
 		f.handleError(c, err)
 	}
+	c.reset()
+	f.pool.Put(c)
 }
 
 // handleError writes an appropriate error response. If the response has
