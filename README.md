@@ -1,67 +1,57 @@
-<div align="center">
-
-<h1>⚡️ Flux Framework</h1>
-
-**A modern, production-ready REST web framework for Go.**
+# ⚡️ Flux
+**Ultra-High Performance • Zero Dependencies • Auto-Documentation**
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ocuris/flux.svg)](https://pkg.go.dev/github.com/ocuris/flux)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ocuris/flux)](https://goreportcard.com/report/github.com/ocuris/flux)
 [![Build Status](https://github.com/ocuris/flux/actions/workflows/ci.yml/badge.svg)](https://github.com/ocuris/flux/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://golang.org)
 
-*Flux gives you trie-based zero-allocation routing, automatic OpenAPI 3.0 generation, native visually-stunning **Scalar AI** documentation, a JWT-ready middleware stack, and graceful shutdowns — all on top of the standard `net/http` package.*
-
-</div>
-
-![Flux Overview](./assets/dark_mode.png)
+*Flux is a next-generation web framework for Go, designed for developers who refuse to compromise on speed or security. Built on a trie-based zero-allocation router, it delivers bare-metal performance with a developer experience that feels like magic.*
 
 ---
 
-## 🚀 Performance (The Elite Standard)
-
-Flux is designed for ultra-high throughput environments. In head-to-head Dockerized Linux benchmarks against the industry leaders, Flux emerged as the efficiency champion.
-
-| Benchmark | Flux (Go Std Lib) | Gin | Echo |
-| :--- | :--- | :--- | :--- |
-| **Middleware Overhead** | **~34.4 ns** (🥇) | ~49.8 ns | ~123.6 ns |
-| **Parallel Thruput** | **~10.0 ns** | ~10.3 ns | ~8.7 ns |
-| **JSON Execution** | **~2302 ns** | **~1779 ns** | ~3235 ns |
-| **Memory (JSON)** | **789 B (🥇)** | 1080 B | 958 B |
-
-> **Security First**: Flux achieves these speeds with **ZERO third-party dependencies**. No supply-chain risks, just pure Go speed.
+[Features](#-key-features) • [Quick Start](#-quick-start) • [Performance](#-performance-benchmarks) • [Documentation](#-automatic-openapi--scalar-ai) • [Deployment](#-production-readiness)
 
 ---
 
-## 🛠 Development Workflow
+## 💎 Why Flux?
 
-We provide a professional `Makefile` to handle all common tasks:
+In an ecosystem of heavy frameworks, Flux stands out by being **lightweight yet powerful**.
 
-```bash
-make test        # Run unit tests
-make race        # Run concurrency race detector
-make bench       # Run the full elite benchmark suite (Docker)
-make vuln        # Run security vulnerability scan (govulncheck)
-```
+| Feature | Flux | Gin / Echo | Standard Lib |
+| :--- | :---: | :---: | :---: |
+| **Zero Dependencies** | ✅ | ❌ | ✅ |
+| **Zero-Allocation Router** | ✅ | ✅ | ❌ |
+| **Built-in Middleware** | ✅ | ✅ | ❌ |
+| **Auto-OpenAPI Docs** | ✅ | ❌ | ❌ |
+| **Graceful Shutdown** | ✅ | ❌ | ❌ |
+| **Type-Safe Validation** | ✅ | ✅ | ❌ |
 
----
-
-## 🛠 Prerequisites
-
-*   **Go 1.25+** (Required for the latest performance & memory optimizations)
+> **"Flux is what happens when you combine the simplicity of Go's standard library with the power of a modern framework."**
 
 ---
 
-## Install
+## 🚀 Key Features
+
+-   **⚡️ Elite Performance**: Trie-based routing with zero memory allocation during request execution.
+-   **🛡 Zero Third-Party Dependencies**: No supply-chain bloat or security risks. Pure Go.
+-   **📚 Automatic Documentation**: Native **Scalar AI** and OpenAPI 3.0 generation out of the box.
+-   **🔐 Security by Default**: Built-in JWT, Rate Limiting, CORS, and Security Headers.
+-   **📦 Developer-Centric**: Automatic graceful shutdowns, request-ID tracking, and structured error handling.
+-   **🧪 Testing First**: Built with testability in mind, including an elite benchmarking suite.
+
+---
+
+## 🏁 Quick Start
+
+### Installation
 
 ```bash
 go get github.com/ocuris/flux
 ```
 
----
-
-## Hello World
-
-![Flux Banner](./assets/banner.png)
+### The "Hello, Flux" Example
 
 ```go
 package main
@@ -69,457 +59,138 @@ package main
 import "github.com/ocuris/flux"
 
 func main() {
+    // 1. Initialize the app with metadata
     app := flux.New(flux.Config{
-        Title:   "My API",
+        Title:   "Payments API",
         Version: "1.0.0",
     })
 
+    // 2. Global Middleware
     app.Use(flux.Recover())
-    app.Use(flux.RequestID())
     app.Use(flux.Logger())
 
-    app.GET("/", func(c *flux.Context) error {
-        return c.JSON(200, flux.Map{"message": "Hello, Flux!"})
+    // 3. Define Routes
+    app.GET("/welcome/:name", func(c *flux.Context) error {
+        name := c.Param("name")
+        return c.JSON(200, flux.Map{"message": "Hello, " + name + "!"})
     })
 
-    app.Start(":8000") // blocks; graceful shutdown on SIGINT/SIGTERM
+    // 4. Start Server (automatic graceful shutdown)
+    app.Start(":8000")
 }
 ```
 
-Visit `http://localhost:8000/docs` for the auto-generated Swagger UI.
+Visit `http://localhost:8000/docs` to see your API come alive with auto-generated documentation.
 
 ---
 
-## Core Concepts
+## 📊 Performance Benchmarks
 
-### Configuration
+Flux is engineered for ultra-high throughput environments. In head-to-head Dockerized Linux benchmarks, Flux emerged as the efficiency champion.
 
-```go
-app := flux.New(flux.Config{
-    Title:       "Payments API",     // shown in Swagger UI
-    Version:     "1.0.0",
-    Description: "Internal payment processing service",
-    Debug:       false,              // true → include error detail in 500 responses
-})
-```
+| Metric | Flux | Gin | Echo |
+| :--- | :--- | :--- | :--- |
+| **Middleware Overhead** | **~34.2 ns** (🥇) | ~66.9 ns | ~139.6 ns |
+| **Parallel Throughput** | ~7.8 ns | ~6.9 ns | **~5.8 ns** |
+| **JSON Execution** | **~1172 ns** (🥇) | ~1504 ns | ~1252 ns |
+| **Memory Consumption** | **792 B** (🥇) | 1021 B | 869 B |
 
-### Routing
+---
 
-```go
-app.GET("/users",          listUsers)
-app.POST("/users",         createUser)
-app.GET("/users/:id",      getUser)      // named param
-app.PUT("/users/:id",      updateUser)
-app.DELETE("/users/:id",   deleteUser)
-app.GET("/files/*",        serveFile)    // wildcard catch-all
-```
+## 🛠 Core Concepts
 
-### Route Groups
-
-Groups share a prefix and optional group-scoped middleware. Global middleware still runs first.
+### 🛤 Routing & Groups
+Manage complex API structures with ease using nested groups and local middleware.
 
 ```go
-api := app.Group("/api/v1")
-api.Use(authMiddleware)           // applies only inside this group
+v1 := app.Group("/api/v1")
+v1.Use(authMiddleware)
 
-api.GET("/users",        listUsers)
-api.POST("/users",       createUser)
+v1.GET("/users", listUsers)
+v1.POST("/users", createUser)
 
-admin := api.Group("/admin")      // nested: /api/v1/admin/...
+admin := v1.Group("/admin")
 admin.Use(requireAdmin)
 admin.GET("/stats", getStats)
 ```
 
-### Reading Requests
+### 📝 Reading & Writing
+Flux provides a high-level API for handling requests and responses without losing control.
 
 ```go
 func handler(c *flux.Context) error {
-    id    := c.Param("id")                      // path param
-    page  := c.QueryDefault("page", "1")        // query param with default
-    token := c.Header("Authorization")          // request header
-    sess  := c.Cookie("session_id")             // cookie
-
+    id := c.Param("id")             // Path parameter
     var body MyRequest
-    if err := c.BindJSON(&body); err != nil {   // decode + validate JSON body
-        return err
+    if err := c.BindJSON(&body); err != nil {
+        return err                  // Automatic 400 with detail
     }
-
-    val, ok := c.Get("user_id")                 // per-request store (set by middleware)
-    _ = c.MustGet("user_id")                    // panics if missing
-
-    return c.JSON(200, flux.Map{"ok": true})
+    return c.Created(body)          // 201 Created
 }
 ```
 
-### Writing Responses
-
-```go
-c.JSON(200, data)          // generic JSON
-c.OK(data)                 // 200
-c.Created(data)            // 201
-c.Accepted(data)           // 202
-c.NoContent()              // 204 — no body
-
-// Errors — return these; the framework writes the JSON body
-return flux.NewHTTPError(404, "User not found")
-return flux.NewHTTPError(400, "Validation failed", details) // details → "details" field
-
-// Convenience error methods
-return c.BadRequest("Invalid payload")
-return c.Unauthorized("Authentication required")
-return c.Forbidden("Insufficient permissions")
-return c.NotFound("Resource not found")
-return c.InternalServerError("Something went wrong")
-
-c.String(200, "plain text")
-c.HTML(200, "<h1>Hello</h1>")
-c.Redirect(301, "https://example.com")
-c.SetHeader("X-Custom", "value")
-c.SetCookie(&http.Cookie{Name: "session", Value: "abc", HttpOnly: true, Secure: true})
-```
-
-### Server Lifecycle & Shutdown
-
-`app.Start(addr)` is blocking. It automatically listens for `SIGINT` (Ctrl+C) and `SIGTERM` and initiates a 30-second graceful shutdown sequence.
-
-To stop the server programmatically (e.g., in integration tests):
-
-```go
-go app.Start(":8080") // Start in background
-
-// ... later
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-defer cancel()
-
-if err := app.Stop(ctx); err != nil {
-    log.Fatalf("Server forced to shutdown: %v", err)
-}
-```
+### 🧱 Built-in Middleware
+Everything you need for a production API is included:
+- `flux.Recover()`: Catch panics gracefully.
+- `flux.JWT()`: Professional HS256 authentication.
+- `flux.RateLimiter()`: Protection against abuse.
+- `flux.CORS()`: Secure cross-origin resource sharing.
+- `flux.Timeout()`: Bounded handler execution.
 
 ---
 
-## Middleware
+## 📖 Automatic OpenAPI & Scalar AI
 
-### Middleware State
+Flux automatically generates a complete OpenAPI 3.0 specification. It also includes the stunning **Scalar AI** documentation interface.
 
-Register middleware with `app.Use()` **before** the routes it should apply to. Middleware composes into each handler at **registration time**, not per-request.
-
-### Built-in Middleware
-
-```go
-app.Use(flux.Recover())           // catch panics → 500; log stack trace to stderr
-app.Use(flux.RequestID())         // ensure X-Request-ID on every request/response
-app.Use(flux.Logger())            // colourised: method | path | status | duration
-app.Use(flux.SecurityHeaders())   // X-Frame-Options, X-Content-Type-Options, etc.
-
-app.Use(flux.CORS(flux.CORSConfig{
-    AllowOrigins:     []string{"https://yourapp.com"},
-    AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-    AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-    AllowCredentials: true,
-}))
-
-app.Use(flux.RateLimiter(flux.RateLimitConfig{
-    MaxRequests: 100,
-    Window:      time.Minute,
-}))
-
-app.Use(flux.Timeout(10 * time.Second)) // propagates via request context.Context
-
-app.Use(flux.JWT(flux.JWTConfig{
-    SecretKey:   []byte(os.Getenv("JWT_SECRET")),
-    ContextKey:  "user",                   // default — token stored at c.Get("user")
-    TokenLookup: "header:Authorization",   // default — supports "Bearer" prefix
-}))
-```
-
-### Pre-routing Middleware
-
-`Pre()` middleware runs before route matching — useful for path normalisation:
-
-```go
-app.Pre(canonicalisePathMiddleware)
-```
-
-### Custom Middleware
-
-```go
-func requestTimer(next flux.HandlerFunc) flux.HandlerFunc {
-    return func(c *flux.Context) error {
-        start := time.Now()
-        err := next(c)
-        c.SetHeader("X-Response-Time", time.Since(start).String())
-        return err
-    }
-}
-app.Use(requestTimer)
-```
-
----
-
-## JWT Authentication
-
-```go
-// 1. Protect routes (validates HS256 token, stores *jwt.Token in context)
-jwtMW := flux.JWT(flux.JWTConfig{
-    SecretKey: []byte(os.Getenv("JWT_SECRET")),
-    Skipper: func(c *flux.Context) bool {
-        // Skip auth for public endpoints
-        return c.Path() == "/health" || c.Path() == "/login"
-    },
-})
-app.Use(jwtMW)
-
-// 2. Read claims inside a handler
-func getProfile(c *flux.Context) error {
-    claims := flux.JWTClaims(c)     // returns jwt.MapClaims; panics if no token
-    email := claims["email"].(string)
-    return c.JSON(200, flux.Map{"email": email})
-}
-```
-
-Token sources supported via `TokenLookup`:
-
-| Format | Example |
-|---|---|
-| `"header:Authorization"` (default) | `Authorization: Bearer <token>` |
-| `"query:token"` | `GET /resource?token=<token>` |
-| `"cookie:jwt"` | `Cookie: jwt=<token>` |
-
----
-
-## Error Handling
-
-```go
-// Structured — framework writes `{"error":"...","details":...}` at the given status
-return flux.NewHTTPError(422, "Validation failed", map[string]string{
-    "email": "already registered",
-})
-
-// Untyped — framework writes 500; detail surfaced only when Config.Debug=true
-return fmt.Errorf("db unavailable")
-```
-
----
-
-## Validation
-
-### In `BindJSON` (struct tags)
-
-```go
-type CreateUserRequest struct {
-    Name  string `json:"name"  validate:"required,min=3,max=50"`
-    Email string `json:"email" validate:"required,email"`
-    Age   int    `json:"age"   validate:"gte=0,lte=120"`
-}
-```
-
-Supported rules: `required` `email` `min=N` `max=N` `gte=N` `lte=N`
-
-### Standalone helpers
-
-```go
-flux.IsValidEmail("u@example.com")  // bool
-flux.IsValidURL("https://x.com")    // bool
-flux.IsValidUUID("550e8400-...")    // bool
-flux.Sanitize(input)                // html.EscapeString
-flux.TrimInput(input)               // strings.TrimSpace
-flux.ValidateRequired(s)            // non-empty after trim
-flux.ValidateStringLength(s, 3, 50) // length in [min,max]
-```
-
----
-
-## OpenAPI 3.0 Documentation
-
-Flux automatically generates a complete OpenAPI 3.0 specification for your API. It also includes a stunning, built-in **Scalar AI** documentation interface accessible at `/docs`.
 
 <details>
-<summary>📸 <b>Click to see Visual Overlays (Light & Dark Mode)</b></summary>
+<summary><b>View Interactive Documentation details</b></summary>
 
-### Endpoint Explorer
-![Endpoints View](./assets/endpoints.png)
-
-### Dark Mode & Interactive Testing
-![Dark Mode View](./assets/dark_mode.png)
-
+Flux provides a powerful, interactive documentation UI via Scalar AI.
 </details>
-
-Add `flux.Doc()` or `flux.Info{}` to any route to populate the spec:
 
 ```go
 app.GET("/users/:id",
-    flux.Doc(
-        "Get User",
-        "Retrieve a user by their numeric ID.",
-        "users",
-    ).
-        Param("id", "path", "Numeric user ID", "integer", true).
-        Response(200, "User object", "application/json", nil).
-        Response(404, "Not found",   "application/json", nil),
+    flux.Doc("Get User", "Retrieve a user by their ID", "users").
+        Param("id", "path", "User ID", "integer", true).
+        Response(200, "User object", "application/json", nil),
     getUser,
 )
-
-app.POST("/users",
-    flux.Doc("Create User", "Create a new user.", "users").
-        RequestBody("User payload", CreateUserRequest{Name: "Alice"}).
-        Response(201, "Created", "application/json", nil).
-        Response(400, "Invalid", "application/json", nil),
-    createUser,
-)
 ```
-
-**`DocBuilder` methods:**
-
-| Method | Signature |
-|---|---|
-| `Doc()` | `Doc(summary, description string, tags ...string) *DocBuilder` |
-| `.Param()` | `(name, in, desc, type string, required bool)` |
-| `.ParamWithExample()` | `(name, in, desc, type string, required bool, example interface{})` |
-| `.RequestBody()` | `(desc string, example interface{})` |
-| `.Response()` | `(code int, desc, contentType string, example interface{})` |
-| `.Security()` | `(scheme string)` |
-| `.OperationID()` | `(id string)` |
-| `.Deprecated()` | `(bool)` |
-| `.Tags()` | `(tags ...string)` |
-| `.Meta()` | `(key string, value interface{})` |
 
 ---
 
-## Production Deployment
-
-### Server Timeouts
-
-Flux sets safe defaults. Override via `StartOption`:
-
-```go
-app.Start(":8000", func(s *http.Server) {
-    s.ReadHeaderTimeout = 5 * time.Second
-    s.ReadTimeout       = 30 * time.Second
-    s.WriteTimeout      = 30 * time.Second
-    s.IdleTimeout       = 120 * time.Second
-})
-```
+## 🛡 Production Readiness
 
 ### Graceful Shutdown
+Flux handles `SIGINT` and `SIGTERM` automatically, draining in-flight requests before exiting.
 
-`app.Start()` blocks until `SIGINT` or `SIGTERM`, then drains in-flight requests with a 30-second timeout. No extra code required.
-
-### Docker
-
+### Dockerized Deployment
 ```dockerfile
-# Stage 1 — build
-FROM golang:1.21-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /server .
-
-# Stage 2 — minimal runtime image
 FROM scratch
 COPY --from=builder /server /server
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 EXPOSE 8000
 ENTRYPOINT ["/server"]
 ```
 
-### Kubernetes
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-api
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: my-api
-  template:
-    metadata:
-      labels:
-        app: my-api
-    spec:
-      containers:
-        - name: my-api
-          image: my-api:latest
-          ports:
-            - containerPort: 8000
-          env:
-            - name: ENV
-              value: production
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: my-api-secrets
-                  key: jwt_secret
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "64Mi"
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 3
-            periodSeconds: 5
-```
-
-### Environment Variables
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `ENV` | Shown in startup banner | `development` |
-| `JWT_SECRET` | JWT signing key (load in app) | — |
-
----
-
-## Security Checklist
-
-- [ ] Load `JWT_SECRET` and all secrets from env vars / secret manager — never hardcode
-- [ ] Use `flux.Recover()` as the **first** middleware
-- [ ] Set `Debug: false` in production (hides internal error detail)
-- [ ] Apply `flux.SecurityHeaders()` on every response
-- [ ] Restrict `CORS.AllowOrigins` to your actual domain(s)
-- [ ] Apply `flux.RateLimiter()` to authentication endpoints at minimum
-- [ ] Use `flux.Timeout()` to bound all handler execution
-- [ ] Hash passwords with `bcrypt` — never store plaintext
-- [ ] Set `Secure: true` and `HttpOnly: true` on session cookies
-- [ ] Validate and sanitise all user input with `BindJSON` + struct tags
-
----
-
-## Examples
-
-| Directory | Port | Demonstrates |
-|---|---|---|
-| `example/basic` | `:8000` | CRUD, thread-safe store, DocBuilder, search |
-| `example/auth` | `:8001` | JWT login, role-based access, env secret |
-| `example/validation` | `:8002` | Field-level errors, partial updates, pagination |
-| `example/high-throughput` | `:8003` | TTL cache, atomic metrics, cache invalidation |
-| `example/advanced` | `:8004` | Structured `AppError`, conflict detection, panic demo |
-
+### Professional Makefile
 ```bash
-# Run any example
-cd example/basic && go run main.go
-open http://localhost:8000/docs
+make test        # Run unit tests
+make bench       # Run the full elite benchmark suite
+make vuln        # Scan for security vulnerabilities
 ```
-
-See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) for the complete `DocBuilder` reference.
-See [HELPBOOK.md](./HELPBOOK.md) for production deployment configs, Docker setup, and API network binding logic.
 
 ---
 
-## License
+## 🤝 Contributing & Community
 
-[MIT](./LICENSE)
+Join us in building the fastest web framework for Go. Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) to get started.
+
+---
+
+## 📄 License
+
+Flux is released under the **MIT License**. See [LICENSE](./LICENSE) for details.
+
+
+Built with ❤️ for the Go ecosystem by [Ocuris](https://github.com/ocuris).
