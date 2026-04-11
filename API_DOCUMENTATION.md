@@ -254,3 +254,23 @@ openapi-generator generate \
     -g typescript-fetch \
     -o ./generated/client
 ```
+---
+
+## Appendix: Performance and Reliability
+
+Flux is designed for industrial-grade loads where every nanosecond and byte counts.
+
+### ⚡️ Lock-Free Routing
+Unlike frameworks that use a global Mutex for routing, Flux uses **Atomic Method-Specific Maps** for static lookups.
+- **Static Routes**: $O(1)$ lock-free dispatch (~4.4ns).
+- **Dynamic Routes**: Optimized trie traversal with zero recursion.
+
+### ♻️ Zero-Allocation Context
+Every request in Flux utilizes a pooled `Context` object. 
+- **Object Reuse**: `sync.Pool` minimizes GC pressure.
+- **Pre-allocation**: Path parameters are pre-allocated for up to 16 segments, avoiding heap growth during routing.
+
+### 🛠 Production Best Practices
+- **Recovery**: Use `flux.Recover()` middleware to prevent server crashes from unexpected panics.
+- **Graceful Shutdown**: Always handle `SIGINT`/`SIGTERM` (built-in via `app.Start`).
+- **Body Closing**: `c.BindJSON` and `c.Body` handle stream closing automatically for you.
