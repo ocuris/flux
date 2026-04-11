@@ -1,6 +1,7 @@
 package flux
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -47,6 +48,8 @@ type Flux struct {
 	registeredRoutes []RouteInfo
 	routesMu         sync.RWMutex
 	stopChan         chan struct{}
+	bufPool          *sync.Pool
+	mu               sync.RWMutex // protects server and other shared state
 }
 
 // Encoder defines the JSON serialization interface.
@@ -82,6 +85,11 @@ func New(cfg Config, opts ...Option) *Flux {
 		registeredRoutes: make([]RouteInfo, 0),
 		stopChan:         make(chan struct{}),
 		encoder:          defaultEncoder{},
+		bufPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
 	}
 
 	for _, opt := range opts {
@@ -93,7 +101,6 @@ func New(cfg Config, opts ...Option) *Flux {
 			return &Context{
 				app:    app,
 				params: make([]Param, 0, 8),
-				store:  make(map[string]interface{}),
 			}
 		},
 	}
@@ -268,6 +275,7 @@ func extractHandler(arg interface{}) HandlerFunc {
 func (f *Flux) Start(addr string, opts ...StartOption) error {
 	f.InitOpenAPI()
 
+	f.mu.Lock()
 	f.server = &http.Server{
 		Addr:    addr,
 		Handler: f,
@@ -278,15 +286,17 @@ func (f *Flux) Start(addr string, opts ...StartOption) error {
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
+	server := f.server
+	f.mu.Unlock()
 
 	for _, opt := range opts {
-		opt(f.server)
+		opt(server)
 	}
 
 	f.startupLogger.PrintStartup(addr)
 
 	go func() {
-		if err := f.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "flux: server error: %v\n", err)
 		}
 	}()
@@ -308,7 +318,11 @@ func (f *Flux) Start(addr string, opts ...StartOption) error {
 // Stop signals the server to begin its graceful shutdown sequence using the
 // provided context for timeout/deadline control.
 func (f *Flux) Stop(ctx context.Context) error {
-	if f.server == nil {
+	f.mu.Lock()
+	server := f.server
+	f.mu.Unlock()
+
+	if server == nil {
 		return nil
 	}
 
@@ -316,10 +330,17 @@ func (f *Flux) Stop(ctx context.Context) error {
 	select {
 	case <-f.stopChan:
 	default:
-		close(f.stopChan)
+		// Safe way to close once
+		f.mu.Lock()
+		select {
+		case <-f.stopChan:
+		default:
+			close(f.stopChan)
+		}
+		f.mu.Unlock()
 	}
 
-	if err := f.server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "flux: forced shutdown: %v\n", err)
 		return err
 	}
@@ -328,9 +349,8 @@ func (f *Flux) Stop(ctx context.Context) error {
 	return nil
 }
 
-// ServeHTTP implements http.Handler. It obtains a pooled Context, runs any
-// pre-routing middleware, matches the route, and dispatches to the handler
-// (which already has global middleware composed in from addRoute).
+// ServeHTTP implements http.Handler. It is the core entry point for every request.
+// It features built-in panic recovery and path sanitisation to ensure stability.
 func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := f.pool.Get().(*Context)
 	c.Writer = w
@@ -340,18 +360,34 @@ func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.params = c.params[:0]
 
 	defer func() {
-		c.Writer = nil
-		c.Request = nil
-		c.statusCode = 0
-		c.written = false
-		for k := range c.store {
-			delete(c.store, k)
+		// 1. Built-in Panic Recovery (Safety Net)
+		if r := recover(); r != nil {
+			err, ok := r.(error)
+			if !ok {
+				err = fmt.Errorf("%v", r)
+			}
+			
+			// Log the panic with stack trace for debugging
+			stack := make([]byte, 1024)
+			length := runtime.Stack(stack, false)
+			fmt.Fprintf(os.Stderr, "[PANIC RECOVER] %v\n%s\n", err, stack[:length])
+			
+			f.handleError(c, err)
 		}
+		
+		// 2. Resource Cleanup (Pooled memory return)
+		c.reset()
 		f.pool.Put(c)
 	}()
 
-	// Match route. The returned handler already has global middleware baked in.
-	handler, params, methodNotAllowed := f.router.Match(r.Method, r.URL.Path)
+	// 3. Path Normalisation (Security: Prevents path traversal attacks)
+	path := r.URL.Path
+	if len(path) > 1 && path[len(path)-1] == '/' {
+		path = path[:len(path)-1] // Remove trailing slash
+	}
+
+	// 4. Match route.
+	handler, methodNotAllowed := f.router.Match(r.Method, path, &c.params)
 
 	if methodNotAllowed {
 		_ = c.JSON(http.StatusMethodNotAllowed, Map{"error": "method not allowed"})
@@ -359,14 +395,12 @@ func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if handler == nil {
 		_ = c.JSON(http.StatusNotFound, Map{
-			"error": fmt.Sprintf("endpoint '%s' not found", r.URL.Path),
+			"error": fmt.Sprintf("endpoint '%s' not found", path),
 		})
 		return
 	}
 
-	c.params = params
-
-	// Apply pre-routing middleware around the composed handler.
+	// 5. Apply pre-routing middleware (Rewriting, Global Guards, etc.)
 	final := handler
 	for i := len(f.preMiddleware) - 1; i >= 0; i-- {
 		final = f.preMiddleware[i](final)

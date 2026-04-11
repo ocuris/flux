@@ -118,6 +118,10 @@ func CORS(config CORSConfig) MiddlewareFunc {
 		config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	}
 
+	methods := strings.Join(config.AllowMethods, ", ")
+	headers := strings.Join(config.AllowHeaders, ", ")
+	maxAge := fmt.Sprintf("%d", config.MaxAge)
+
 	return func(next HandlerFunc) HandlerFunc {
 		return func(c *Context) error {
 			origin := c.Header("Origin")
@@ -138,14 +142,14 @@ func CORS(config CORSConfig) MiddlewareFunc {
 				}
 			}
 
-			c.SetHeader("Access-Control-Allow-Methods", strings.Join(config.AllowMethods, ", "))
-			c.SetHeader("Access-Control-Allow-Headers", strings.Join(config.AllowHeaders, ", "))
+			c.SetHeader("Access-Control-Allow-Methods", methods)
+			c.SetHeader("Access-Control-Allow-Headers", headers)
 
 			if config.AllowCredentials {
 				c.SetHeader("Access-Control-Allow-Credentials", "true")
 			}
 			if config.MaxAge > 0 {
-				c.SetHeader("Access-Control-Max-Age", fmt.Sprintf("%d", config.MaxAge))
+				c.SetHeader("Access-Control-Max-Age", maxAge)
 			}
 
 			// Short-circuit preflight
@@ -169,39 +173,57 @@ type rateLimitEntry struct {
 	resetTime time.Time
 }
 
-// RateLimiter enforces a per-IP sliding-window request limit using an
-// in-memory store protected by a mutex (safe for concurrent use).
-//
-// NOTE: This is designed for single-instance deployments. For distributed
-// setups, replace the local store with a shared backend such as Redis.
+const rateLimitShards = 64
+
+type rateLimitShard struct {
+	mu    sync.Mutex
+	store map[string]*rateLimitEntry
+}
+
+// RateLimiter enforces a per-IP sliding-window request limit using a sharded
+// in-memory store to reduce mutex contention.
 func RateLimiter(config RateLimitConfig) MiddlewareFunc {
-	var mu sync.Mutex
-	store := make(map[string]*rateLimitEntry)
+	shards := make([]*rateLimitShard, rateLimitShards)
+	for i := range rateLimitShards {
+		shards[i] = &rateLimitShard{
+			store: make(map[string]*rateLimitEntry),
+		}
+	}
+
+	getShard := func(key string) *rateLimitShard {
+		var hash uint32 = 2166136261
+		for i := 0; i < len(key); i++ {
+			hash *= 16777619
+			hash ^= uint32(key[i])
+		}
+		return shards[hash%rateLimitShards]
+	}
 
 	return func(next HandlerFunc) HandlerFunc {
 		return func(c *Context) error {
 			key := c.Request.RemoteAddr
 			now := time.Now()
 
-			mu.Lock()
-			entry, exists := store[key]
+			shard := getShard(key)
+			shard.mu.Lock()
+			entry, exists := shard.store[key]
 			if !exists {
-				store[key] = &rateLimitEntry{count: 1, resetTime: now.Add(config.Window)}
-				mu.Unlock()
+				shard.store[key] = &rateLimitEntry{count: 1, resetTime: now.Add(config.Window)}
+				shard.mu.Unlock()
 				return next(c)
 			}
 			if now.After(entry.resetTime) {
 				entry.count = 1
 				entry.resetTime = now.Add(config.Window)
-				mu.Unlock()
+				shard.mu.Unlock()
 				return next(c)
 			}
 			if entry.count >= config.MaxRequests {
-				mu.Unlock()
+				shard.mu.Unlock()
 				return NewHTTPError(http.StatusTooManyRequests, "Too Many Requests")
 			}
 			entry.count++
-			mu.Unlock()
+			shard.mu.Unlock()
 
 			return next(c)
 		}

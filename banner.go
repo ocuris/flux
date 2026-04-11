@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -152,15 +153,19 @@ func (l *StartupLogger) printFooter(addr string) {
 }
 
 // logRequest is called by the Logger middleware to print a colourised
-// one-line request summary to stdout.
+// one-line request summary to stdout. It is optimized to avoid fmt reflection entirely.
 func logRequest(method, path string, status int, duration time.Duration) {
-	statusColor := colorGreen
-	if status >= 400 && status < 500 {
-		statusColor = colorYellow
-	} else if status >= 500 {
-		statusColor = colorRed
-	}
+	// Simple manual buffer formatting to beat fmt performance
+	var b strings.Builder
+	b.Grow(128) // Pre-allocate enough space for a line
 
+	// Time
+	b.WriteString(colorDim)
+	b.WriteString(time.Now().Format("15:04:05"))
+	b.WriteString(colorReset)
+	b.WriteString(" ")
+
+	// Method
 	methodColor := colorCyan
 	switch method {
 	case "GET":
@@ -174,14 +179,45 @@ func logRequest(method, path string, status int, duration time.Duration) {
 	case "PATCH":
 		methodColor = colorPurple
 	}
+	b.WriteString(methodColor)
+	b.WriteString(method)
+	// Add padding for alignment
+	for i := len(method); i < 7; i++ {
+		b.WriteByte(' ')
+	}
+	b.WriteString(colorReset)
+	b.WriteString(" ")
 
-	fmt.Printf("%s%s%s %s%-7s%s %s%-30s%s %s%3d%s %s%.2fms%s\n",
-		colorDim, time.Now().Format("15:04:05"), colorReset,
-		methodColor, method, colorReset,
-		colorWhite, path, colorReset,
-		statusColor, status, colorReset,
-		colorDim, float64(duration.Microseconds())/1000.0, colorReset,
-	)
+	// Path
+	b.WriteString(colorWhite)
+	b.WriteString(path)
+	for i := len(path); i < 30; i++ {
+		b.WriteByte(' ')
+	}
+	b.WriteString(colorReset)
+	b.WriteString(" ")
+
+	// Status
+	statusColor := colorGreen
+	if status >= 400 && status < 500 {
+		statusColor = colorYellow
+	} else if status >= 500 {
+		statusColor = colorRed
+	}
+	b.WriteString(statusColor)
+	b.WriteString(strconv.Itoa(status))
+	b.WriteString(colorReset)
+	b.WriteString(" ")
+
+	// Duration
+	b.WriteString(colorDim)
+	durMs := float64(duration.Microseconds()) / 1000.0
+	b.WriteString(strconv.FormatFloat(durMs, 'f', 2, 64))
+	b.WriteString("ms")
+	b.WriteString(colorReset)
+	b.WriteByte('\n')
+
+	os.Stdout.WriteString(b.String())
 }
 
 // parseAddr splits a "host:port" or ":port" address string into its components.

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Validator is the interface for struct validation.
@@ -12,14 +13,32 @@ type Validator interface {
 	Validate(i interface{}) error
 }
 
-// validator is the built-in struct tag validator.
-// The emailRegex is shared from validation.go (emailRegexpV).
-type validator struct{}
-
-// NewValidator returns a new validator instance.
-func NewValidator() *validator {
-	return &validator{}
+type validationRule struct {
+	name  string
+	param string
 }
+
+type fieldInfo struct {
+	name  string
+	index int
+	rules []validationRule
+}
+
+type structCache struct {
+	fields []fieldInfo
+}
+
+// validator is the built-in struct tag validator.
+type validator struct {
+	cache sync.Map // map[reflect.Type]*structCache
+}
+
+// NewValidator returns the default validator instance.
+func NewValidator() *validator {
+	return defaultValidator
+}
+
+var defaultValidator = &validator{}
 
 // Validate inspects every field of s that carries a "validate" struct tag
 // and applies the declared rules in order. Returns the first error found.
@@ -33,18 +52,18 @@ func (v *validator) Validate(s interface{}) error {
 	}
 
 	typ := val.Type()
-	for i := 0; i < val.NumField(); i++ {
-		field := val.Field(i)
-		fieldType := typ.Field(i)
+	var info *structCache
+	if cached, ok := v.cache.Load(typ); ok {
+		info = cached.(*structCache)
+	} else {
+		info = v.parseStruct(typ)
+		v.cache.Store(typ, info)
+	}
 
-		tag := fieldType.Tag.Get("validate")
-		if tag == "" {
-			continue
-		}
-
-		for _, rule := range strings.Split(tag, ",") {
-			rule = strings.TrimSpace(rule)
-			if err := v.validateRule(field, fieldType.Name, rule); err != nil {
+	for _, f := range info.fields {
+		field := val.Field(f.index)
+		for _, r := range f.rules {
+			if err := v.executeRule(field, f.name, r.name, r.param); err != nil {
 				return err
 			}
 		}
@@ -52,27 +71,52 @@ func (v *validator) Validate(s interface{}) error {
 	return nil
 }
 
-func (v *validator) validateRule(field reflect.Value, fieldName, rule string) error {
-	switch {
-	case rule == "required":
+func (v *validator) parseStruct(typ reflect.Type) *structCache {
+	info := &structCache{}
+	for i := 0; i < typ.NumField(); i++ {
+		fieldType := typ.Field(i)
+		tag := fieldType.Tag.Get("validate")
+		if tag == "" {
+			continue
+		}
+
+		fInfo := fieldInfo{
+			name:  fieldType.Name,
+			index: i,
+		}
+
+		for _, rStr := range strings.Split(tag, ",") {
+			rStr = strings.TrimSpace(rStr)
+			parts := strings.SplitN(rStr, "=", 2)
+			ruleName := parts[0]
+			param := ""
+			if len(parts) > 1 {
+				param = parts[1]
+			}
+			fInfo.rules = append(fInfo.rules, validationRule{name: ruleName, param: param})
+		}
+		info.fields = append(info.fields, fInfo)
+	}
+	return info
+}
+
+func (v *validator) executeRule(field reflect.Value, fieldName, ruleName, param string) error {
+	switch ruleName {
+	case "required":
 		if isZeroValue(field) {
 			return fmt.Errorf("field '%s' is required", fieldName)
 		}
 
-	case rule == "email":
+	case "email":
 		if field.Kind() == reflect.String {
 			email := field.String()
-			// Reuse the pre-compiled regex from validation.go
 			if email != "" && !emailRegexpV.MatchString(email) {
 				return fmt.Errorf("field '%s' must be a valid email", fieldName)
 			}
 		}
 
-	case strings.HasPrefix(rule, "min="):
-		min, err := strconv.Atoi(strings.TrimPrefix(rule, "min="))
-		if err != nil {
-			return fmt.Errorf("invalid min value in tag for '%s'", fieldName)
-		}
+	case "min":
+		min, _ := strconv.Atoi(param)
 		switch field.Kind() {
 		case reflect.String:
 			if len(field.String()) < min {
@@ -84,11 +128,8 @@ func (v *validator) validateRule(field reflect.Value, fieldName, rule string) er
 			}
 		}
 
-	case strings.HasPrefix(rule, "max="):
-		max, err := strconv.Atoi(strings.TrimPrefix(rule, "max="))
-		if err != nil {
-			return fmt.Errorf("invalid max value in tag for '%s'", fieldName)
-		}
+	case "max":
+		max, _ := strconv.Atoi(param)
 		switch field.Kind() {
 		case reflect.String:
 			if len(field.String()) > max {
@@ -100,22 +141,16 @@ func (v *validator) validateRule(field reflect.Value, fieldName, rule string) er
 			}
 		}
 
-	case strings.HasPrefix(rule, "gte="):
-		gte, err := strconv.Atoi(strings.TrimPrefix(rule, "gte="))
-		if err != nil {
-			return fmt.Errorf("invalid gte value in tag for '%s'", fieldName)
-		}
+	case "gte":
+		gte, _ := strconv.Atoi(param)
 		if field.Kind() >= reflect.Int && field.Kind() <= reflect.Int64 {
 			if field.Int() < int64(gte) {
 				return fmt.Errorf("field '%s' must be >= %d", fieldName, gte)
 			}
 		}
 
-	case strings.HasPrefix(rule, "lte="):
-		lte, err := strconv.Atoi(strings.TrimPrefix(rule, "lte="))
-		if err != nil {
-			return fmt.Errorf("invalid lte value in tag for '%s'", fieldName)
-		}
+	case "lte":
+		lte, _ := strconv.Atoi(param)
 		if field.Kind() >= reflect.Int && field.Kind() <= reflect.Int64 {
 			if field.Int() > int64(lte) {
 				return fmt.Errorf("field '%s' must be <= %d", fieldName, lte)

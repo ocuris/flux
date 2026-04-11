@@ -66,3 +66,9 @@ openapi.json
 # Test coverage
 coverage.out
 coverage.html
+
+# Performance and Benchmarks
+benchmarks/result_*
+benchmarks/comparison/bench.test
+benchmarks/comparison/comparison.test
+benchmarks/comparison/go.sum.tmp

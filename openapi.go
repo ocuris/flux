@@ -12,8 +12,9 @@ import (
 
 // OpenAPISpec represents the OpenAPI specification
 type OpenAPISpec struct {
-	config Config
-	paths  map[string]map[string]*any
+	config    Config
+	paths     map[string]map[string]*any
+	specJSON  []byte // pre-generated and cached
 }
 
 // RouteOptions holds route metadata for OpenAPI
@@ -45,8 +46,57 @@ func (f *Flux) InitOpenAPI() {
 		paths:  make(map[string]map[string]*any),
 	}
 
+	f.generateOpenAPISpec()
+
 	f.GET("/docs", f.handleDocs)
 	f.GET("/openapi.json", f.handleOpenAPIJSON)
+}
+
+func (f *Flux) generateOpenAPISpec() {
+	paths := make(map[string]map[string]interface{})
+
+	f.routesMu.RLock()
+	for _, route := range f.registeredRoutes {
+		if route.Path == "/docs" || route.Path == "/openapi.json" || route.Path == "/redoc" {
+			continue
+		}
+
+		openAPIPath := toOpenAPIPath(route.Path)
+		if _, exists := paths[openAPIPath]; !exists {
+			paths[openAPIPath] = make(map[string]interface{})
+		}
+
+		methodKey := strings.ToLower(route.Method)
+		var operation map[string]interface{}
+		if route.Doc != nil {
+			operation = route.Doc.ToMap()
+		} else {
+			operation = map[string]interface{}{
+				"summary":     fmt.Sprintf("%s %s", route.Method, route.Path),
+				"operationId": fmt.Sprintf("%s_%s", methodKey, openAPIPath),
+				"responses": map[string]interface{}{
+					"200": map[string]interface{}{
+						"description": "Successful response",
+					},
+				},
+			}
+		}
+		paths[openAPIPath][methodKey] = operation
+	}
+	f.routesMu.RUnlock()
+
+	spec := map[string]interface{}{
+		"openapi": "3.0.0",
+		"info": map[string]interface{}{
+			"title":       f.config.Title,
+			"description": f.config.Description,
+			"version":     f.config.Version,
+		},
+		"paths": paths,
+	}
+
+	data, _ := json.MarshalIndent(spec, "", "  ")
+	f.openapi.specJSON = data
 }
 
 // handleDocs serves the Swagger UI documentation page.
@@ -65,63 +115,12 @@ func (f *Flux) handleDocs(c *Context) error {
 //
 // Path parameters are converted from Flux notation (:id) to OpenAPI notation
 // ({id}) so Swagger UI renders interactive input fields for them.
+// handleOpenAPIJSON serves the pre-generated OpenAPI spec.
 func (f *Flux) handleOpenAPIJSON(c *Context) error {
-	paths := make(map[string]map[string]interface{})
-
-	f.routesMu.RLock()
-	for _, route := range f.registeredRoutes {
-		// Skip internal endpoints
-		if route.Path == "/docs" || route.Path == "/openapi.json" || route.Path == "/redoc" {
-			continue
-		}
-
-		// :param → {param}  (OpenAPI 3.0 path template format)
-		openAPIPath := toOpenAPIPath(route.Path)
-
-		if _, exists := paths[openAPIPath]; !exists {
-			paths[openAPIPath] = make(map[string]interface{})
-		}
-
-		methodKey := strings.ToLower(route.Method)
-
-		var operation map[string]interface{}
-		if route.Doc != nil {
-			operation = route.Doc.ToMap()
-		} else {
-			operation = map[string]interface{}{
-				"summary":     fmt.Sprintf("%s %s", route.Method, route.Path),
-				"operationId": fmt.Sprintf("%s_%s", methodKey, openAPIPath),
-				"responses": map[string]interface{}{
-					"200": map[string]interface{}{
-						"description": "Successful response",
-					},
-				},
-			}
-		}
-
-		paths[openAPIPath][methodKey] = operation
-	}
-	f.routesMu.RUnlock()
-
-	spec := map[string]interface{}{
-		"openapi": "3.0.0",
-		"info": map[string]interface{}{
-			"title":       f.config.Title,
-			"description": f.config.Description,
-			"version":     f.config.Version,
-		},
-		"paths": paths,
-	}
-
-	data, err := json.MarshalIndent(spec, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal OpenAPI spec: %w", err)
-	}
-
 	c.SetHeader("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.SetHeader("Pragma", "no-cache")
 	c.SetHeader("Expires", "0")
 	c.SetHeader("Content-Type", "application/json")
-	_, err = c.Writer.Write(data)
+	_, err := c.Writer.Write(f.openapi.specJSON)
 	return err
 }

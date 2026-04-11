@@ -1,7 +1,8 @@
 package flux
 
 import (
-	"io"
+	"bytes"
+	"encoding/json"
 	"net/http"
 )
 
@@ -14,6 +15,19 @@ type Context struct {
 	store      map[string]interface{} // per-request key/value store
 	statusCode int                    // tracked for Logger middleware
 	written    bool                   // true once a response has been committed
+}
+
+func (c *Context) reset() {
+	c.Writer = nil
+	c.Request = nil
+	c.statusCode = 0
+	c.written = false
+	c.params = c.params[:0]
+	if c.store != nil {
+		for k := range c.store {
+			delete(c.store, k)
+		}
+	}
 }
 
 // Param represents a URL path parameter (e.g. :id → {Key:"id", Value:"123"}).
@@ -67,17 +81,29 @@ func (c *Context) JSON(code int, data interface{}) error {
 	if c.written {
 		return nil
 	}
-	body, err := c.app.encoder.Marshal(data)
-	if err != nil {
+
+	buf := c.app.bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer c.app.bufPool.Put(buf)
+
+	if err := json.NewEncoder(buf).Encode(data); err != nil {
 		return err
 	}
-	c.Writer.Header().Set("Content-Type", "application/json")
+
+	c.Writer.Header().Set(headerContentType, headerValueJSON)
 	c.Writer.WriteHeader(code)
 	c.statusCode = code
 	c.written = true
-	_, err = c.Writer.Write(body)
+	_, err := c.Writer.Write(buf.Bytes())
 	return err
 }
+
+var (
+	headerContentType = "Content-Type"
+	headerValueJSON   = "application/json"
+	headerValueHTML   = "text/html; charset=utf-8"
+	headerValuePlain  = "text/plain; charset=utf-8"
+)
 
 // StatusJSON is an alias for JSON (for explicit status-code readability).
 func (c *Context) StatusJSON(code int, data interface{}) error {
@@ -89,7 +115,7 @@ func (c *Context) String(code int, text string) error {
 	if c.written {
 		return nil
 	}
-	c.Writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	c.Writer.Header().Set(headerContentType, headerValuePlain)
 	c.Writer.WriteHeader(code)
 	c.statusCode = code
 	c.written = true
@@ -102,7 +128,7 @@ func (c *Context) HTML(code int, html string) error {
 	if c.written {
 		return nil
 	}
-	c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	c.Writer.Header().Set(headerContentType, headerValueHTML)
 	c.Writer.WriteHeader(code)
 	c.statusCode = code
 	c.written = true
@@ -112,15 +138,21 @@ func (c *Context) HTML(code int, html string) error {
 
 // BindJSON reads the request body, JSON-decodes it into v, and runs validation.
 // The body is always closed after this call.
-func (c *Context) BindJSON(v interface{}) error {
-	defer c.Request.Body.Close() // always close before ReadAll
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
+func (c *Context) BindJSON(v any) error {
+	defer c.Request.Body.Close()
+
+	buf := c.app.bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer c.app.bufPool.Put(buf)
+
+	if _, err := buf.ReadFrom(c.Request.Body); err != nil {
 		return NewHTTPError(http.StatusBadRequest, "Failed to read request body", err.Error())
 	}
-	if err := c.app.encoder.Unmarshal(body, v); err != nil {
+
+	if err := json.Unmarshal(buf.Bytes(), v); err != nil {
 		return NewHTTPError(http.StatusBadRequest, "Invalid JSON", err.Error())
 	}
+
 	if err := NewValidator().Validate(v); err != nil {
 		return NewHTTPError(http.StatusUnprocessableEntity, "Validation failed", err.Error())
 	}
@@ -128,10 +160,23 @@ func (c *Context) BindJSON(v interface{}) error {
 }
 
 // Body reads and returns the raw request body. The caller is responsible for
-// closing the body; prefer BindJSON for structured data.
+// closing the body.
 func (c *Context) Body() ([]byte, error) {
 	defer c.Request.Body.Close()
-	return io.ReadAll(c.Request.Body)
+
+	buf := c.app.bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer c.app.bufPool.Put(buf)
+
+	if _, err := buf.ReadFrom(c.Request.Body); err != nil {
+		return nil, err
+	}
+
+	// Note: We return a copy here because the pooled buffer will be reused.
+	// For zero-allocation raw body access, we'd need a different pattern.
+	data := make([]byte, buf.Len())
+	copy(data, buf.Bytes())
+	return data, nil
 }
 
 // Method returns the HTTP method of the current request.
