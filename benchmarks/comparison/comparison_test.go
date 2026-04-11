@@ -3,6 +3,7 @@ package bench
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -249,5 +250,143 @@ func BenchmarkJSONBig_Fiber(b *testing.B) {
 	req := httptest.NewRequest("GET", "/json", nil)
 	for b.Loop() {
 		_, _ = f.Test(req)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// 5. PATH PARAMETER CHALLENGE (extrating :id)
+// ----------------------------------------------------------------------------
+
+func BenchmarkParam_Flux(b *testing.B) {
+	app := flux.New(flux.Config{})
+	app.GET("/users/:id", func(c *flux.Context) error {
+		_ = c.Param("id")
+		return nil
+	})
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		app.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkParam_Gin(b *testing.B) {
+	router := gin.New()
+	router.GET("/users/:id", func(c *gin.Context) {
+		_ = c.Param("id")
+	})
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		router.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkParam_Echo(b *testing.B) {
+	e := echo.New()
+	e.GET("/users/:id", func(c echo.Context) error {
+		_ = c.Param("id")
+		return nil
+	})
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		e.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkParam_Fiber(b *testing.B) {
+	f := fiber.New()
+	f.Get("/users/:id", func(c *fiber.Ctx) error {
+		_ = c.Params("id")
+		return nil
+	})
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	for b.Loop() {
+		_, _ = f.Test(req)
+	}
+}
+
+func BenchmarkParam_Chi(b *testing.B) {
+	r := chi.NewRouter()
+	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_ = chi.URLParam(r, "id")
+	})
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		r.ServeHTTP(w, req)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// 6. LARGE SCALE ROUTING (100 routes)
+// ----------------------------------------------------------------------------
+
+func createLargeFlux(n int) *flux.Flux {
+	app := flux.New(flux.Config{})
+	for i := 0; i < n; i++ {
+		app.GET("/route/"+strconv.Itoa(i), func(c *flux.Context) error { return nil })
+	}
+	return app
+}
+
+func BenchmarkLarge_Flux(b *testing.B) {
+	app := createLargeFlux(100)
+	req := httptest.NewRequest("GET", "/route/99", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		app.ServeHTTP(w, req)
+	}
+}
+
+func createLargeGin(n int) *gin.Engine {
+	r := gin.New()
+	for i := 0; i < n; i++ {
+		r.GET("/route/"+strconv.Itoa(i), func(c *gin.Context) {})
+	}
+	return r
+}
+
+func BenchmarkLarge_Gin(b *testing.B) {
+	r := createLargeGin(100)
+	req := httptest.NewRequest("GET", "/route/99", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		r.ServeHTTP(w, req)
+	}
+}
+
+func createLargeEcho(n int) *echo.Echo {
+	e := echo.New()
+	for i := 0; i < n; i++ {
+		e.GET("/route/"+strconv.Itoa(i), func(c echo.Context) error { return nil })
+	}
+	return e
+}
+
+func BenchmarkLarge_Echo(b *testing.B) {
+	e := createLargeEcho(100)
+	req := httptest.NewRequest("GET", "/route/99", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		e.ServeHTTP(w, req)
+	}
+}
+
+func createLargeChi(n int) *chi.Mux {
+	r := chi.NewRouter()
+	for i := 0; i < n; i++ {
+		r.Get("/route/"+strconv.Itoa(i), func(w http.ResponseWriter, r *http.Request) {})
+	}
+	return r
+}
+
+func BenchmarkLarge_Chi(b *testing.B) {
+	r := createLargeChi(100)
+	req := httptest.NewRequest("GET", "/route/99", nil)
+	w := httptest.NewRecorder()
+	for b.Loop() {
+		r.ServeHTTP(w, req)
 	}
 }

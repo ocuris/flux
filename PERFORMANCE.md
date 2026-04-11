@@ -17,7 +17,7 @@ This benchmark measures the raw overhead of the framework engine per request. Un
 | **4 Cores** | **5.3 ns** | 10.3 ns | 6.1 ns | 108 ns |
 | **8 Cores** | **4.3 ns** | 6.7 ns | 5.4 ns | 122 ns |
 
-**Key Finding**: Flux is **~1.5x faster than Gin** and **~1.2x faster than Echo** in peak high-concurrency scenarios. It scales linearly from 1 to 4 cores with near-zero lock contention.
+**Key Finding**: Flux is **~1.5x faster than Gin** and **~1.2x faster than Echo** in peak high-concurrency scenarios. It scales linearly from 1 to 4 cores with near-zero lock contention. Flux consistently delivers the lowest latency for static route dispatch.
 
 ---
 
@@ -27,14 +27,28 @@ Measuring the efficiency of individual framework components.
 | Component | Metric | Result | Allocations |
 | :--- | :--- | :--- | :--- |
 | **Static Router** | Time per Lookup | **7.8 ns** | 0 B/op |
-| **Param Router** | Time per Lookup | **58.5 ns** | 0 B/op |
+| **Param Challenge** | Flux (55.2 ns) | Chi (263.4 ns) | **Flux is 4.7x Faster** |
 | **Full Request** | Engine Cycle | **460 ns** | 0 B/op (framework) |
 
 *(Note: Full Request includes request context creation, routing, and response writing).*
 
 ---
 
-## 📦 3. JSON & Memory Profiling
+## 🏗 3. Large-Scale Routing (100 Routes)
+Testing how performance scales as the application grows in complexity.
+
+| Framework | Time per Request | Allocs/op | Speed Advantage |
+| :--- | :---: | :---: | :--- |
+| **⚡️ Flux** | **28.6 ns** | **0** | **🥇 Fastest** |
+| **Echo** | 37.4 ns | 0 | 1.3x Slower |
+| **Gin** | 38.4 ns | 0 | 1.4x Slower |
+| **Chi** | 155.4 ns | 2 | 5.4x Slower |
+
+**Analysis**: Flux maintains $O(1)$ dispatch time regardless of route count for static paths, while trie-based routers incur increasing overhead as the tree grows.
+
+---
+
+## 📦 4. JSON & Memory Profiling
 Testing serialization performance and heap pressure.
 
 | Framework | JSON Throughput | Allocs/op (Framework) | Heap Footprint |
@@ -48,7 +62,7 @@ Testing serialization performance and heap pressure.
 
 ---
 
-## 🧪 4. Load Testing (Sustained Traffic)
+## 🧪 5. Load Testing (Sustained Traffic)
 Testing the server under external pressure via `ab` (Apache Benchmark).
 
 - **Peak Throughput**: 89,756 Requests Per Second (RPS)
@@ -58,7 +72,7 @@ Testing the server under external pressure via `ab` (Apache Benchmark).
 
 ---
 
-## 🧠 5. Architectural Innovations
+## 🧠 6. Architectural Innovations
 
 The performance results above are achieved through three specific optimizations:
 

@@ -237,7 +237,11 @@ func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
 
 // addRoute maps a handler and its metadata to the internal router.
 func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilder, groupTags []string) {
-	// 1. Auto-Documentation Logic
+	// Clean double slashes
+	for strings.Contains(path, "//") {
+		path = strings.ReplaceAll(path, "//", "/")
+	}
+
 	if doc == nil {
 		doc = Doc("", "")
 	}

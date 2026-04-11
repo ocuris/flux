@@ -136,8 +136,8 @@ func (c *Context) HTML(code int, html string) error {
 	return err
 }
 
-// BindJSON reads the request body, JSON-decodes it into v, and runs validation.
-// The body is always closed after this call.
+// BindJSON reads the request body, JSON-decodes it into v using the configured
+// encoder, and runs validation. The body is always closed after this call.
 func (c *Context) BindJSON(v any) error {
 	defer c.Request.Body.Close()
 
@@ -149,7 +149,7 @@ func (c *Context) BindJSON(v any) error {
 		return NewHTTPError(http.StatusBadRequest, "Failed to read request body", err.Error())
 	}
 
-	if err := json.Unmarshal(buf.Bytes(), v); err != nil {
+	if err := c.app.encoder.Unmarshal(buf.Bytes(), v); err != nil {
 		return NewHTTPError(http.StatusBadRequest, "Invalid JSON", err.Error())
 	}
 
