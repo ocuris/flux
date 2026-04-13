@@ -2,6 +2,7 @@ package flux
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -199,9 +200,9 @@ func logRequest(method, path string, status int, duration time.Duration) {
 
 	// Status
 	statusColor := colorGreen
-	if status >= 400 && status < 500 {
+	if status >= http.StatusBadRequest && status < http.StatusInternalServerError {
 		statusColor = colorYellow
-	} else if status >= 500 {
+	} else if status >= http.StatusInternalServerError {
 		statusColor = colorRed
 	}
 	b.WriteString(statusColor)

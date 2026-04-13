@@ -10,7 +10,7 @@ import (
 
 // Validator is the interface for struct validation.
 type Validator interface {
-	Validate(i interface{}) error
+	Validate(i any) error
 }
 
 type validationRule struct {
@@ -42,7 +42,7 @@ var defaultValidator = &validator{}
 
 // Validate inspects every field of s that carries a "validate" struct tag
 // and applies the declared rules in order. Returns the first error found.
-func (v *validator) Validate(s interface{}) error {
+func (v *validator) Validate(s any) error {
 	val := reflect.ValueOf(s)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()

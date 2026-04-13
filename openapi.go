@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -12,9 +13,9 @@ import (
 
 // OpenAPISpec represents the OpenAPI specification
 type OpenAPISpec struct {
-	config    Config
-	paths     map[string]map[string]*any
-	specJSON  []byte // pre-generated and cached
+	config   Config
+	paths    map[string]map[string]*any
+	specJSON []byte // pre-generated and cached
 }
 
 // RouteOptions holds route metadata for OpenAPI
@@ -53,7 +54,7 @@ func (f *Flux) InitOpenAPI() {
 }
 
 func (f *Flux) generateOpenAPISpec() {
-	paths := make(map[string]map[string]interface{})
+	paths := make(map[string]map[string]any)
 
 	f.routesMu.RLock()
 	for _, route := range f.registeredRoutes {
@@ -63,19 +64,19 @@ func (f *Flux) generateOpenAPISpec() {
 
 		openAPIPath := toOpenAPIPath(route.Path)
 		if _, exists := paths[openAPIPath]; !exists {
-			paths[openAPIPath] = make(map[string]interface{})
+			paths[openAPIPath] = make(map[string]any)
 		}
 
 		methodKey := strings.ToLower(route.Method)
-		var operation map[string]interface{}
+		var operation map[string]any
 		if route.Doc != nil {
 			operation = route.Doc.ToMap()
 		} else {
-			operation = map[string]interface{}{
+			operation = map[string]any{
 				"summary":     fmt.Sprintf("%s %s", route.Method, route.Path),
 				"operationId": fmt.Sprintf("%s_%s", methodKey, openAPIPath),
-				"responses": map[string]interface{}{
-					"200": map[string]interface{}{
+				"responses": map[string]any{
+					"200": map[string]any{
 						"description": "Successful response",
 					},
 				},
@@ -85,9 +86,9 @@ func (f *Flux) generateOpenAPISpec() {
 	}
 	f.routesMu.RUnlock()
 
-	spec := map[string]interface{}{
+	spec := map[string]any{
 		"openapi": "3.0.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":       f.config.Title,
 			"description": f.config.Description,
 			"version":     f.config.Version,
@@ -108,7 +109,7 @@ func (f *Flux) handleDocs(c *Context) error {
 	c.SetHeader("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.SetHeader("Pragma", "no-cache")
 	c.SetHeader("Expires", "0")
-	return c.HTML(200, buf.String())
+	return c.HTML(http.StatusOK, buf.String())
 }
 
 // handleOpenAPIJSON generates and serves the OpenAPI 3.0 specification JSON.

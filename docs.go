@@ -11,7 +11,7 @@ type DocBuilder struct {
 	requestBody *RequestBodyDoc
 	responses   map[int]*ResponseDoc
 	security    []string
-	metadata    map[string]interface{}
+	metadata    map[string]any
 }
 
 type Info struct {
@@ -26,41 +26,40 @@ func (i Info) Param(name, in, description, schemaType string, required bool) *Do
 }
 
 // Response allows chaining responses directly on an Info struct.
-func (i Info) Response(code int, description, contentType string, schema interface{}) *DocBuilder {
+func (i Info) Response(code int, description, contentType string, schema any) *DocBuilder {
 	return Doc(i.Summary, i.Description, i.Tags...).Response(code, description, contentType, schema)
 }
 
 // RequestBody allows chaining a request body schema directly on an Info struct.
-func (i Info) RequestBody(description string, schema interface{}) *DocBuilder {
+func (i Info) RequestBody(description string, schema any) *DocBuilder {
 	return Doc(i.Summary, i.Description, i.Tags...).RequestBody(description, schema)
 }
 
-
 // Parameter describes a route parameter (path, query, header, etc.)
 type Parameter struct {
-	Name        string      `json:"name"`
-	In          string      `json:"in"` // path, query, header, cookie
-	Description string      `json:"description"`
-	SchemaType  string      `json:"type"` // string, number, integer, boolean, array, object
-	Required    bool        `json:"required"`
-	Schema      *Schema     `json:"schema,omitempty"`
-	Example     interface{} `json:"example,omitempty"`
+	Name        string  `json:"name"`
+	In          string  `json:"in"` // path, query, header, cookie
+	Description string  `json:"description"`
+	SchemaType  string  `json:"type"` // string, number, integer, boolean, array, object
+	Required    bool    `json:"required"`
+	Schema      *Schema `json:"schema,omitempty"`
+	Example     any     `json:"example,omitempty"`
 }
 
 // RequestBodyDoc describes request body
 type RequestBodyDoc struct {
-	Description string      `json:"description"`
-	Schema      *Schema     `json:"schema"`
-	Required    bool        `json:"required"`
-	Example     interface{} `json:"example"`
+	Description string  `json:"description"`
+	Schema      *Schema `json:"schema"`
+	Required    bool    `json:"required"`
+	Example     any     `json:"example"`
 }
 
 // ResponseDoc describes a response
 type ResponseDoc struct {
-	Description string      `json:"description"`
-	ContentType string      `json:"content_type"`
-	Schema      *Schema     `json:"schema"`
-	Example     interface{} `json:"example"`
+	Description string  `json:"description"`
+	ContentType string  `json:"content_type"`
+	Schema      *Schema `json:"schema"`
+	Example     any     `json:"example"`
 }
 
 // Schema describes OpenAPI schema
@@ -70,9 +69,9 @@ type Schema struct {
 	Description string             `json:"description,omitempty"`
 	Properties  map[string]*Schema `json:"properties,omitempty"`
 	Items       *Schema            `json:"items,omitempty"`
-	Example     interface{}        `json:"example,omitempty"`
-	Default     interface{}        `json:"default,omitempty"`
-	Enum        []interface{}      `json:"enum,omitempty"`
+	Example     any                `json:"example,omitempty"`
+	Default     any                `json:"default,omitempty"`
+	Enum        []any              `json:"enum,omitempty"`
 	MinLength   *int               `json:"minLength,omitempty"`
 	MaxLength   *int               `json:"maxLength,omitempty"`
 	Pattern     string             `json:"pattern,omitempty"`
@@ -90,7 +89,7 @@ func Doc(summary, description string, tags ...string) *DocBuilder {
 		parameters:  make([]Parameter, 0),
 		responses:   make(map[int]*ResponseDoc),
 		security:    make([]string, 0),
-		metadata:    make(map[string]interface{}),
+		metadata:    make(map[string]any),
 	}
 }
 
@@ -125,7 +124,7 @@ func (d *DocBuilder) Param(name, in, description, schemaType string, required bo
 }
 
 // ParamWithExample adds a parameter with example value
-func (d *DocBuilder) ParamWithExample(name, in, description, schemaType string, required bool, example interface{}) *DocBuilder {
+func (d *DocBuilder) ParamWithExample(name, in, description, schemaType string, required bool, example any) *DocBuilder {
 	d.parameters = append(d.parameters, Parameter{
 		Name:        name,
 		In:          in,
@@ -138,7 +137,7 @@ func (d *DocBuilder) ParamWithExample(name, in, description, schemaType string, 
 }
 
 // RequestBody sets the request body documentation
-func (d *DocBuilder) RequestBody(description string, example interface{}) *DocBuilder {
+func (d *DocBuilder) RequestBody(description string, example any) *DocBuilder {
 	d.requestBody = &RequestBodyDoc{
 		Description: description,
 		Required:    true,
@@ -148,7 +147,7 @@ func (d *DocBuilder) RequestBody(description string, example interface{}) *DocBu
 }
 
 // Response adds response documentation
-func (d *DocBuilder) Response(statusCode int, description, contentType string, example interface{}) *DocBuilder {
+func (d *DocBuilder) Response(statusCode int, description, contentType string, example any) *DocBuilder {
 	d.responses[statusCode] = &ResponseDoc{
 		Description: description,
 		ContentType: contentType,
@@ -164,7 +163,7 @@ func (d *DocBuilder) Security(scheme string) *DocBuilder {
 }
 
 // Meta adds arbitrary metadata
-func (d *DocBuilder) Meta(key string, value interface{}) *DocBuilder {
+func (d *DocBuilder) Meta(key string, value any) *DocBuilder {
 	d.metadata[key] = value
 	return d
 }
@@ -182,8 +181,8 @@ func (d *DocBuilder) OperationID(id string) *DocBuilder {
 }
 
 // ToMap converts to map for OpenAPI spec
-func (d *DocBuilder) ToMap() map[string]interface{} {
-	result := map[string]interface{}{
+func (d *DocBuilder) ToMap() map[string]any {
+	result := map[string]any{
 		"summary":     d.summary,
 		"description": d.description,
 	}
@@ -195,14 +194,14 @@ func (d *DocBuilder) ToMap() map[string]interface{} {
 
 	// Add parameters if any
 	if len(d.parameters) > 0 {
-		params := make([]map[string]interface{}, len(d.parameters))
+		params := make([]map[string]any, len(d.parameters))
 		for i, p := range d.parameters {
-			params[i] = map[string]interface{}{
+			params[i] = map[string]any{
 				"name":        p.Name,
 				"in":          p.In,
 				"description": p.Description,
 				"required":    p.Required,
-				"schema": map[string]interface{}{
+				"schema": map[string]any{
 					"type": p.SchemaType,
 				},
 			}
@@ -215,40 +214,40 @@ func (d *DocBuilder) ToMap() map[string]interface{} {
 
 	// Add request body if any
 	if d.requestBody != nil {
-		result["requestBody"] = map[string]interface{}{
+		result["requestBody"] = map[string]any{
 			"description": d.requestBody.Description,
 			"required":    d.requestBody.Required,
-			"content": map[string]interface{}{
-				"application/json": map[string]interface{}{
-					"schema": map[string]interface{}{
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
 						"type": "object",
 					},
 				},
 			},
 		}
 		if d.requestBody.Example != nil {
-			result["requestBody"].(map[string]interface{})["content"].(map[string]interface{})["application/json"].(map[string]interface{})["example"] = d.requestBody.Example
+			result["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["example"] = d.requestBody.Example
 		}
 	}
 
 	// Add responses
-	responses := make(map[string]interface{})
+	responses := make(map[string]any)
 	for statusCode, resp := range d.responses {
 		statusStr := statusCodeToString(statusCode)
-		responses[statusStr] = map[string]interface{}{
+		responses[statusStr] = map[string]any{
 			"description": resp.Description,
 		}
 
 		if resp.ContentType != "" {
-			contentNode := map[string]interface{}{
-				"schema": map[string]interface{}{
+			contentNode := map[string]any{
+				"schema": map[string]any{
 					"type": "object",
 				},
 			}
 			if resp.Example != nil {
 				contentNode["example"] = resp.Example
 			}
-			responses[statusStr].(map[string]interface{})["content"] = map[string]interface{}{
+			responses[statusStr].(map[string]any)["content"] = map[string]any{
 				resp.ContentType: contentNode,
 			}
 		}

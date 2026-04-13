@@ -15,7 +15,7 @@ type Group struct {
 }
 
 // newGroup is the internal constructor used by Flux.Group.
-func newGroup(app *Flux, prefix string, args ...interface{}) *Group {
+func newGroup(app *Flux, prefix string, args ...any) *Group {
 	g := &Group{
 		prefix:     prefix,
 		middleware: make([]MiddlewareFunc, 0),
@@ -41,7 +41,7 @@ func (g *Group) Use(middleware ...MiddlewareFunc) {
 
 // Group creates a nested group with an additional prefix relative to this group.
 // The parent group's tags and middleware are inherited.
-func (g *Group) Group(prefix string, args ...interface{}) *Group {
+func (g *Group) Group(prefix string, args ...any) *Group {
 	inheritedMid := make([]MiddlewareFunc, len(g.middleware))
 	copy(inheritedMid, g.middleware)
 
@@ -67,42 +67,42 @@ func (g *Group) Group(prefix string, args ...interface{}) *Group {
 }
 
 // GET registers a GET handler within this group.
-func (g *Group) GET(path string, args ...interface{}) {
+func (g *Group) GET(path string, args ...any) {
 	g.add(http.MethodGet, path, args...)
 }
 
 // POST registers a POST handler within this group.
-func (g *Group) POST(path string, args ...interface{}) {
+func (g *Group) POST(path string, args ...any) {
 	g.add(http.MethodPost, path, args...)
 }
 
 // PUT registers a PUT handler within this group.
-func (g *Group) PUT(path string, args ...interface{}) {
+func (g *Group) PUT(path string, args ...any) {
 	g.add(http.MethodPut, path, args...)
 }
 
 // DELETE registers a DELETE handler within this group.
-func (g *Group) DELETE(path string, args ...interface{}) {
+func (g *Group) DELETE(path string, args ...any) {
 	g.add(http.MethodDelete, path, args...)
 }
 
 // PATCH registers a PATCH handler within this group.
-func (g *Group) PATCH(path string, args ...interface{}) {
+func (g *Group) PATCH(path string, args ...any) {
 	g.add(http.MethodPatch, path, args...)
 }
 
 // HEAD registers a HEAD handler within this group.
-func (g *Group) HEAD(path string, args ...interface{}) {
+func (g *Group) HEAD(path string, args ...any) {
 	g.add(http.MethodHead, path, args...)
 }
 
 // OPTIONS registers an OPTIONS handler within this group.
-func (g *Group) OPTIONS(path string, args ...interface{}) {
+func (g *Group) OPTIONS(path string, args ...any) {
 	g.add(http.MethodOptions, path, args...)
 }
 
 // Any registers a route for ALL standard HTTP methods within this group.
-func (g *Group) Any(path string, args ...interface{}) {
+func (g *Group) Any(path string, args ...any) {
 	methods := []string{
 		http.MethodGet, http.MethodPost, http.MethodPut,
 		http.MethodDelete, http.MethodPatch, http.MethodHead,
@@ -114,7 +114,7 @@ func (g *Group) Any(path string, args ...interface{}) {
 }
 
 // Match registers a route for a specific set of HTTP methods within this group.
-func (g *Group) Match(methods []string, path string, args ...interface{}) {
+func (g *Group) Match(methods []string, path string, args ...any) {
 	for _, m := range methods {
 		g.add(m, path, args...)
 	}
@@ -122,7 +122,7 @@ func (g *Group) Match(methods []string, path string, args ...interface{}) {
 
 // add parses the variadic args, wraps the handler with group middleware, and
 // delegates to the Flux app's addRoute (which composes global middleware).
-func (g *Group) add(method, path string, args ...interface{}) {
+func (g *Group) add(method, path string, args ...any) {
 	var doc *DocBuilder
 	var handler HandlerFunc
 	var mws []MiddlewareFunc
@@ -136,20 +136,20 @@ func (g *Group) add(method, path string, args ...interface{}) {
 			doc = Doc(info.Summary, info.Description, info.Tags...)
 			continue
 		}
-		
+
 		// Attempt to extract handler or middleware
 		if h := extractHandler(arg); h != nil {
 			handler = h
 			continue
 		}
-		
+
 		// If it's not a handler, maybe it's a middleware?
 		v := reflect.ValueOf(arg)
 		if v.IsValid() && v.Kind() == reflect.Func {
 			t := v.Type()
-			if t.NumIn() == 1 && t.NumOut() == 1 && 
-			   t.In(0).ConvertibleTo(handlerType) && 
-			   t.Out(0).ConvertibleTo(handlerType) {
+			if t.NumIn() == 1 && t.NumOut() == 1 &&
+				t.In(0).ConvertibleTo(handlerType) &&
+				t.Out(0).ConvertibleTo(handlerType) {
 				mws = append(mws, v.Convert(reflect.TypeOf((*MiddlewareFunc)(nil)).Elem()).Interface().(MiddlewareFunc))
 				continue
 			}

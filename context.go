@@ -12,9 +12,9 @@ type Context struct {
 	Request    *http.Request
 	app        *Flux
 	params     []Param
-	store      map[string]interface{} // per-request key/value store
-	statusCode int                    // tracked for Logger middleware
-	written    bool                   // true once a response has been committed
+	store      map[string]any // per-request key/value store
+	statusCode int            // tracked for Logger middleware
+	written    bool           // true once a response has been committed
 }
 
 func (c *Context) reset() {
@@ -77,7 +77,7 @@ func (c *Context) SetContentType(contentType string) {
 // JSON marshals data to JSON and writes it with the given HTTP status code.
 // After the first call, subsequent calls within the same request are no-ops
 // to prevent double-write panics.
-func (c *Context) JSON(code int, data interface{}) error {
+func (c *Context) JSON(code int, data any) error {
 	if c.written {
 		return nil
 	}
@@ -98,7 +98,7 @@ func (c *Context) JSON(code int, data interface{}) error {
 	return err
 }
 
-var (
+const (
 	headerContentType = "Content-Type"
 	headerValueJSON   = "application/json"
 	headerValueHTML   = "text/html; charset=utf-8"
@@ -106,7 +106,7 @@ var (
 )
 
 // StatusJSON is an alias for JSON (for explicit status-code readability).
-func (c *Context) StatusJSON(code int, data interface{}) error {
+func (c *Context) StatusJSON(code int, data any) error {
 	return c.JSON(code, data)
 }
 
@@ -190,15 +190,15 @@ func (c *Context) Path() string {
 }
 
 // Set stores an arbitrary value in the per-request context store.
-func (c *Context) Set(key string, value interface{}) {
+func (c *Context) Set(key string, value any) {
 	if c.store == nil {
-		c.store = make(map[string]interface{})
+		c.store = make(map[string]any)
 	}
 	c.store[key] = value
 }
 
 // Get retrieves a value from the per-request context store.
-func (c *Context) Get(key string) (interface{}, bool) {
+func (c *Context) Get(key string) (any, bool) {
 	if c.store == nil {
 		return nil, false
 	}
@@ -207,7 +207,7 @@ func (c *Context) Get(key string) (interface{}, bool) {
 }
 
 // MustGet retrieves a value from the context store, panicking if not found.
-func (c *Context) MustGet(key string) interface{} {
+func (c *Context) MustGet(key string) any {
 	val, ok := c.Get(key)
 	if !ok {
 		panic("flux: key not found in context store: " + key)

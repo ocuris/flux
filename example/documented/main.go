@@ -27,9 +27,9 @@ type CreateUserRequest struct {
 
 // ErrorResponse for error handling
 type ErrorResponse struct {
-	Code    string                 `json:"code" doc:"Error code"`
-	Message string                 `json:"message" doc:"Human-readable error message"`
-	Details map[string]interface{} `json:"details,omitempty" doc:"Additional error context"`
+	Code    string         `json:"code" doc:"Error code"`
+	Message string         `json:"message" doc:"Human-readable error message"`
+	Details map[string]any `json:"details,omitempty" doc:"Additional error context"`
 }
 
 var users = map[int]*User{

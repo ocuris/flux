@@ -222,9 +222,9 @@ func BenchmarkJSONBig_Gin(b *testing.B) {
 
 func BenchmarkJSONBig_Echo(b *testing.B) {
 	e := echo.New()
-	data := map[string]interface{}{
+	data := map[string]any{
 		"id": 1, "name": "Test User", "role": "admin",
-		"meta": map[string]interface{}{"login_count": 42, "last_ip": "127.0.0.1"},
+		"meta": map[string]any{"login_count": 42, "last_ip": "127.0.0.1"},
 		"tags": []string{"fast", "secure", "lean"},
 	}
 	e.GET("/json", func(c echo.Context) error {

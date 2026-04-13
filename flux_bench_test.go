@@ -40,7 +40,6 @@ func BenchmarkFullRequest(b *testing.B) {
 	req := httptest.NewRequest("GET", "/api/v1/users/123", nil)
 	w := httptest.NewRecorder()
 
-
 	for b.Loop() {
 		app.ServeHTTP(w, req)
 	}

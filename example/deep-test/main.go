@@ -26,10 +26,10 @@ func main() {
 		// 1. Capture Params from different levels of the tree
 		orgID := c.Param("orgID")
 		projectID := c.Param("projectID")
-		
+
 		// 2. Capture Wildcard (captured as "*")
-		// Note: we also allow capturing via the name if preferred 
-		filepath := c.Param("*") 
+		// Note: we also allow capturing via the name if preferred
+		filepath := c.Param("*")
 
 		// 3. Deserialize Payload
 		var req CommandRequest

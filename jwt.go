@@ -61,7 +61,7 @@ func JWT(config JWTConfig) MiddlewareFunc {
 				return NewHTTPError(http.StatusUnauthorized, "missing or malformed token")
 			}
 
-			token, err := jwt.Parse(raw, func(t *jwt.Token) (interface{}, error) {
+			token, err := jwt.Parse(raw, func(t *jwt.Token) (any, error) {
 				// Reject tokens not signed with an HMAC algorithm
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])

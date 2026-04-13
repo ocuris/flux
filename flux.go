@@ -17,11 +17,11 @@ import (
 	"unicode"
 )
 
-// handlerType is the reflect type for HandlerFunc. Used to reinterpret 
+// handlerType is the reflect type for HandlerFunc. Used to reinterpret
 // external functions via reflect.Convert during route registration.
-var handlerType = reflect.TypeOf((*HandlerFunc)(nil)).Elem()
+var handlerType = reflect.TypeFor[HandlerFunc]()
 
-// HandlerFunc is the core request handler signature. 
+// HandlerFunc is the core request handler signature.
 type HandlerFunc func(*Context) error
 
 // MiddlewareFunc wraps a HandlerFunc with additional behaviour.
@@ -73,7 +73,7 @@ func WithEncoder(e Encoder) Option {
 	}
 }
 
-// New initializes a Flux instance. Accepts optional configurators 
+// New returns a new Flux instance. It accepts optional configurators
 // for future-proofing (e.g. custom encoders).
 func New(cfg Config, opts ...Option) *Flux {
 	app := &Flux{
@@ -86,7 +86,7 @@ func New(cfg Config, opts ...Option) *Flux {
 		stopChan:         make(chan struct{}),
 		encoder:          defaultEncoder{},
 		bufPool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return new(bytes.Buffer)
 			},
 		},
@@ -97,7 +97,7 @@ func New(cfg Config, opts ...Option) *Flux {
 	}
 
 	app.pool = &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &Context{
 				app:    app,
 				params: make([]Param, 0, 16),
@@ -108,8 +108,8 @@ func New(cfg Config, opts ...Option) *Flux {
 	return app
 }
 
-// Use appends global middleware that will be composed into every route
-// registered after this call. Middleware MUST be registered before routes.
+// Use appends global middleware to the application. Middleware must be
+// registered before routes.
 func (f *Flux) Use(middleware ...MiddlewareFunc) {
 	f.middleware = append(f.middleware, middleware...)
 }
@@ -122,42 +122,42 @@ func (f *Flux) Pre(middleware ...MiddlewareFunc) {
 }
 
 // GET registers a handler for HTTP GET requests.
-func (f *Flux) GET(path string, args ...interface{}) {
+func (f *Flux) GET(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodGet, path, args...)
 }
 
 // POST registers a handler for HTTP POST requests.
-func (f *Flux) POST(path string, args ...interface{}) {
+func (f *Flux) POST(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodPost, path, args...)
 }
 
 // PUT registers a handler for HTTP PUT requests.
-func (f *Flux) PUT(path string, args ...interface{}) {
+func (f *Flux) PUT(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodPut, path, args...)
 }
 
 // DELETE registers a handler for HTTP DELETE requests.
-func (f *Flux) DELETE(path string, args ...interface{}) {
+func (f *Flux) DELETE(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodDelete, path, args...)
 }
 
 // PATCH registers a handler for HTTP PATCH requests.
-func (f *Flux) PATCH(path string, args ...interface{}) {
+func (f *Flux) PATCH(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodPatch, path, args...)
 }
 
 // HEAD registers a handler for HTTP HEAD requests.
-func (f *Flux) HEAD(path string, args ...interface{}) {
+func (f *Flux) HEAD(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodHead, path, args...)
 }
 
 // OPTIONS registers a handler for HTTP OPTIONS requests.
-func (f *Flux) OPTIONS(path string, args ...interface{}) {
+func (f *Flux) OPTIONS(path string, args ...any) {
 	f.addDocumentedRoute(http.MethodOptions, path, args...)
 }
 
 // Any registers a route for ALL standard HTTP methods.
-func (f *Flux) Any(path string, args ...interface{}) {
+func (f *Flux) Any(path string, args ...any) {
 	methods := []string{
 		http.MethodGet, http.MethodPost, http.MethodPut,
 		http.MethodDelete, http.MethodPatch, http.MethodHead,
@@ -169,7 +169,7 @@ func (f *Flux) Any(path string, args ...interface{}) {
 }
 
 // Match registers a route for a specific set of HTTP methods.
-func (f *Flux) Match(methods []string, path string, args ...interface{}) {
+func (f *Flux) Match(methods []string, path string, args ...any) {
 	for _, m := range methods {
 		f.addDocumentedRoute(strings.ToUpper(m), path, args...)
 	}
@@ -177,13 +177,13 @@ func (f *Flux) Match(methods []string, path string, args ...interface{}) {
 
 // Group creates a route group with a shared prefix. Arguments can include
 // MiddlewareFunc or string (for automatic documentation tags).
-func (f *Flux) Group(prefix string, args ...interface{}) *Group {
+func (f *Flux) Group(prefix string, args ...any) *Group {
 	return newGroup(f, prefix, args...)
 }
 
-// addDocumentedRoute parses variadic args for (HandlerFunc, *DocBuilder) in
-// any order, then delegates to addRoute.
-func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
+// addDocumentedRoute parses variadic args for HandlerFunc, DocBuilder,
+// and Info in any order, then registers the route.
+func (f *Flux) addDocumentedRoute(method, path string, args ...any) {
 	var doc *DocBuilder
 	var handler HandlerFunc
 	var mws []MiddlewareFunc
@@ -197,27 +197,27 @@ func (f *Flux) addDocumentedRoute(method, path string, args ...interface{}) {
 			doc = Doc(info.Summary, info.Description, info.Tags...)
 			continue
 		}
-		
+
 		// Attempt to extract handler or middleware
 		if h := extractHandler(arg); h != nil {
 			handler = h
 			continue
 		}
-		
+
 		// If it's not a handler, maybe it's a middleware?
-		// We use reflection here because anonymous functions might not 
+		// We use reflection here because anonymous functions might not
 		// satisfy the Type Assertion until converted.
 		v := reflect.ValueOf(arg)
 		if v.IsValid() && v.Kind() == reflect.Func {
 			// Check if it's a MiddlewareFunc: func(HandlerFunc) HandlerFunc
 			t := v.Type()
-			if t.NumIn() == 1 && t.NumOut() == 1 && 
-			   t.In(0).ConvertibleTo(handlerType) && 
-			   t.Out(0).ConvertibleTo(handlerType) {
+			if t.NumIn() == 1 && t.NumOut() == 1 &&
+				t.In(0).ConvertibleTo(handlerType) &&
+				t.Out(0).ConvertibleTo(handlerType) {
 				mws = append(mws, v.Convert(reflect.TypeOf((*MiddlewareFunc)(nil)).Elem()).Interface().(MiddlewareFunc))
 				continue
 			}
-			
+
 			// If it's a function but doesn't match anything, THEN we panic
 			panic(fmt.Sprintf("flux: invalid function signature for %s %s. Expected HandlerFunc or MiddlewareFunc, but got %s", method, path, t.String()))
 		}
@@ -292,7 +292,7 @@ func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilde
 	f.startupLogger.AddRoute(method, path, doc)
 }
 
-// extractHandler attempts to obtain a HandlerFunc from an interface{} value.
+// extractHandler attempts to obtain a HandlerFunc from an any value.
 //
 // It handles two cases:
 //  1. The value IS a flux.HandlerFunc (direct assertion succeeds).
@@ -300,7 +300,7 @@ func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilde
 //     Go stores the concrete package-local function type in the interface,
 //     so a direct assertion fails even though the signatures are identical.
 //     reflect.Value.Convert solves this by reinterpreting the function pointer.
-func extractHandler(arg interface{}) HandlerFunc {
+func extractHandler(arg any) HandlerFunc {
 	if h, ok := arg.(HandlerFunc); ok {
 		return h
 	}
@@ -405,7 +405,7 @@ func (f *Flux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.written = false
 	c.params = c.params[:0]
 
-	// Note: defer was removed to eliminate overhead in the hot path. 
+	// Note: defer was removed to eliminate overhead in the hot path.
 	// Panic recovery is now the responsibility of the recovery middleware.
 	// We MUST manually return the context to the pool at every exit point.
 
@@ -483,7 +483,7 @@ func (f *Flux) handleError(c *Context, err error) {
 // when a handler returns an HTTPError, c.statusCode is set (via c.JSON)
 // BEFORE outer middleware (e.g. Logger) unwinds. This guarantees Logger
 // always logs the correct HTTP status code.
-func getFunctionName(i interface{}) string {
+func getFunctionName(i any) string {
 	fn := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 	parts := strings.Split(fn, ".")
 	raw := parts[len(parts)-1]
@@ -511,7 +511,7 @@ func camelToSpaces(s string) string {
 type HTTPError struct {
 	Code    int
 	Message string
-	Details interface{}
+	Details any
 }
 
 func (e *HTTPError) Error() string {
@@ -520,8 +520,8 @@ func (e *HTTPError) Error() string {
 
 // NewHTTPError creates a new HTTPError. An optional details argument is
 // included in the "details" field of the JSON response.
-func NewHTTPError(code int, message string, details ...interface{}) *HTTPError {
-	var det interface{}
+func NewHTTPError(code int, message string, details ...any) *HTTPError {
+	var det any
 	if len(details) > 0 {
 		det = details[0]
 	}

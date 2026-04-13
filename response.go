@@ -7,22 +7,22 @@ import "net/http"
 // code stays lean and self-documenting.
 
 // OK sends a 200 OK JSON response.
-func (c *Context) OK(data interface{}) error {
+func (c *Context) OK(data any) error {
 	return c.JSON(http.StatusOK, data)
 }
 
 // Created sends a 201 Created JSON response.
-func (c *Context) Created(data interface{}) error {
+func (c *Context) Created(data any) error {
 	return c.JSON(http.StatusCreated, data)
 }
 
 // Accepted sends a 202 Accepted JSON response.
-func (c *Context) Accepted(data interface{}) error {
+func (c *Context) Accepted(data any) error {
 	return c.JSON(http.StatusAccepted, data)
 }
 
 // BadRequest returns a 400 Bad Request HTTPError.
-func (c *Context) BadRequest(message string, details ...interface{}) error {
+func (c *Context) BadRequest(message string, details ...any) error {
 	return NewHTTPError(http.StatusBadRequest, message, details...)
 }
 

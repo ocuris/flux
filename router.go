@@ -157,8 +157,6 @@ func (r *Router) cloneAndAdd(old *map[string]HandlerFunc, path string, handler H
 //   - handler:           the matched HandlerFunc (nil if not found)
 //   - params:            path parameters extracted from the URL
 //   - methodNotAllowed:  true when the path matched but not for this method (→ 405)
-//
-// Match finds the handler for method+path.
 func (r *Router) Match(method, path string, params *[]Param) (HandlerFunc, bool) {
 	// 1. FASTEST PATH: Method-specific single lookup
 	switch method {
@@ -229,8 +227,6 @@ func (r *Router) Match(method, path string, params *[]Param) (HandlerFunc, bool)
 			}
 			segment := search[start:i]
 
-			isStatic := false
-			_ = isStatic // Silence if unused (only if we need it for caching, which we removed)
 			if next, ok := node.static[segment]; ok {
 				node = next
 			} else if node.param != nil {

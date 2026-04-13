@@ -143,7 +143,7 @@ func main() {
 
 	// Meta Group
 	meta := app.Group("/", "System")
-	meta.GET("/", handleRoot)   // Auto-summary: "Handle Root"
+	meta.GET("/", handleRoot)         // Auto-summary: "Handle Root"
 	meta.GET("/health", handleHealth) // Auto-summary: "Handle Health"
 
 	// Users Group - Automatically tagged as "Users"
