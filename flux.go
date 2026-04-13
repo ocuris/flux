@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -49,6 +50,7 @@ type Flux struct {
 	routesMu         sync.RWMutex
 	stopChan         chan struct{}
 	bufPool          *sync.Pool
+	maxParams        int          // tracked to pre-scale the Context.params slice
 	mu               sync.RWMutex // protects server and other shared state
 }
 
@@ -242,6 +244,19 @@ func (f *Flux) addRoute(method, path string, handler HandlerFunc, doc *DocBuilde
 		path = strings.ReplaceAll(path, "//", "/")
 	}
 
+	// Dynamic Parameter Pre-scaling: track max params across all routes
+	paramCount := 0
+	for segment := range strings.SplitSeq(path, "/") {
+		if strings.HasPrefix(segment, ":") || segment == "*" {
+			paramCount++
+		}
+	}
+	f.routesMu.Lock()
+	if paramCount > f.maxParams {
+		f.maxParams = paramCount
+	}
+	f.routesMu.Unlock()
+
 	if doc == nil {
 		doc = Doc("", "")
 	}
@@ -321,6 +336,23 @@ func extractHandler(arg any) HandlerFunc {
 func (f *Flux) Start(addr string, opts ...StartOption) error {
 	f.InitOpenAPI()
 
+	// Calibrate Context Pool: Pre-scale params slice based on the deepest route
+	// registered. This ensures absolute zero heap-allocations during routing.
+	f.routesMu.RLock()
+	optimalParams := f.maxParams
+	f.routesMu.RUnlock()
+
+	// If we found deep routes (> 16 params), we re-scale the pool's constructor.
+	// We default to 16 as it's a balanced baseline for small APIs.
+	if optimalParams > 16 {
+		f.pool.New = func() any {
+			return &Context{
+				app:    f,
+				params: make([]Param, 0, optimalParams),
+			}
+		}
+	}
+
 	f.mu.Lock()
 	f.server = &http.Server{
 		Addr:    addr,
@@ -341,9 +373,34 @@ func (f *Flux) Start(addr string, opts ...StartOption) error {
 
 	f.startupLogger.PrintStartup(addr)
 
+	// Create a listener with SO_REUSEADDR and SO_REUSEPORT for instant hot-reload lifecycle
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var err error
+			c.Control(func(fd uintptr) {
+				// SO_REUSEADDR is safe for all runs (handles TIME_WAIT)
+				_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+
+				// SO_REUSEPORT is enabled during managed sessions to allow
+				// seamless handovers and avoid "address already in use" errors.
+				if os.Getenv("FLUX_HOT_RELOAD") == "true" || os.Getenv("FLUX_MANAGED") == "true" {
+					_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1)
+				}
+			})
+			return err
+		},
+	}
+
+	ln, err := lc.Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "flux: server error: %v\n", err)
+		return err
+	}
+
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "flux: server error: %v\n", err)
+			_ = f.Stop(context.Background())
 		}
 	}()
 
@@ -527,3 +584,6 @@ func NewHTTPError(code int, message string, details ...any) *HTTPError {
 	}
 	return &HTTPError{Code: code, Message: message, Details: det}
 }
+
+
+

@@ -1,0 +1,41 @@
+goos: darwin
+goarch: arm64
+pkg: bench
+cpu: Apple M1
+BenchmarkParallel_Flux
+BenchmarkParallel_Flux           	60597708	        19.47 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-2         	120033608	        10.15 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-4         	233034822	         5.838 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-8         	303965353	         3.979 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin
+BenchmarkParallel_Gin            	43352991	        26.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-2          	88565245	        13.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-4          	173104782	         6.917 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-8          	233955790	         5.223 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo
+BenchmarkParallel_Echo           	50792485	        23.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-2         	100000000	        13.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-4         	192683048	         6.297 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-8         	257077279	         4.843 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Fiber
+BenchmarkParallel_Fiber          	  315358	      3586 ns/op	    5593 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-2        	  529092	      2248 ns/op	    5597 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-4        	  769659	      1574 ns/op	    5614 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-8        	  521364	      2435 ns/op	    5681 B/op	      21 allocs/op
+BenchmarkParallel_Chi
+BenchmarkParallel_Chi            	 5963004	       200.3 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-2          	 9435241	       129.2 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-4          	15015687	        81.12 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-8          	10151714	       117.9 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_HttpRouter
+BenchmarkParallel_HttpRouter     	95951701	        12.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_HttpRouter-2   	188930409	         6.356 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_HttpRouter-4   	332779662	         3.614 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_HttpRouter-8   	441981556	         2.818 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Mux
+BenchmarkParallel_Mux            	 2628967	       444.3 ns/op	     848 B/op	       7 allocs/op
+BenchmarkParallel_Mux-2          	 4285162	       300.5 ns/op	     848 B/op	       7 allocs/op
+BenchmarkParallel_Mux-4          	 6392018	       192.5 ns/op	     848 B/op	       7 allocs/op
+BenchmarkParallel_Mux-8          	 4771752	       254.2 ns/op	     848 B/op	       7 allocs/op
+PASS
+ok  	bench	42.786s

@@ -1,0 +1,31 @@
+goos: darwin
+goarch: arm64
+pkg: bench
+cpu: Apple M1
+BenchmarkParallel_Flux
+BenchmarkParallel_Flux      	60082773	        19.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-2    	100000000	        11.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-4    	229739360	         5.288 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-8    	298981065	         4.013 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin
+BenchmarkParallel_Gin       	45416125	        26.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-2     	89013064	        13.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-4     	172249761	         6.896 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-8     	223462958	         5.296 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo
+BenchmarkParallel_Echo      	49572094	        23.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-2    	99601593	        11.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-4    	194489109	         6.266 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-8    	238450113	         5.234 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Fiber
+BenchmarkParallel_Fiber     	  335936	      3475 ns/op	    5593 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-2   	  539041	      2269 ns/op	    5597 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-4   	  784537	      1572 ns/op	    5613 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-8   	  513787	      2517 ns/op	    5682 B/op	      21 allocs/op
+BenchmarkParallel_Chi
+BenchmarkParallel_Chi       	 5770622	       202.2 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-2     	 9482420	       131.7 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-4     	11911758	        93.33 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-8     	10469160	       115.3 ns/op	     368 B/op	       2 allocs/op
+PASS
+ok  	bench	29.273s

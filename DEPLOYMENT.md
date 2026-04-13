@@ -47,7 +47,37 @@ app.Start("127.0.0.1:8080")
 ### Hiding Docs in Production
 If you do *not* want public users seeing your Swagger/Scalar documentation in production, you can simply wrap the route registration in an environment variable check (though Flux registers them automatically, so a feature for conditionally disabling `InitOpenAPI` could be planned based on environment). For now, it is safe to expose them as they just serve the JSON schema and HTML.
 
-## 2. Compiling for Production
+## 3. Development Tools & Hot Reload
+
+Flux provides a native hot-reloading mechanism to speed up development cycles. You can use it via the CLI (recommended) or directly in your code.
+
+### How it works
+The reloader uses a **Parent/Child process architecture**:
+1. The **Manager (Parent)** watches the filesystem for `.go` file changes.
+2. When a save is detected, it signals the **Server (Child)** to exit.
+3. It then recompiles (using `go run` or a custom command) and restarts the server immediately.
+
+To prevent "address already in use" errors during rapid restarts, Flux uses `SO_REUSEPORT`. This allows the new process to bind to the port while the previous one is still clearing its operating system socket buffer.
+
+### Customizing the Restart
+If your project structure is non-standard (e.g. your entry point is in `cmd/main.go`), you can specify a custom reload command:
+
+**Via CLI:**
+```bash
+flux --reload cmd/main.go
+```
+
+**Via Code:**
+```go
+app := flux.New(flux.Config{
+    Reload: true,
+    ReloadCommand: "go run cmd/main.go",
+})
+```
+
+---
+
+## 4. Compiling for Production
 
 When you are ready to deploy your backend to a Linux server (like AWS, DigitalOcean, or a Docker container) from your Mac or Windows machine, trace standard Go cross-compilation:
 

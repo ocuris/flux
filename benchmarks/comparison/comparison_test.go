@@ -11,6 +11,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/ocuris/flux"
+	"github.com/gorilla/mux"
+	"github.com/julienschmidt/httprouter"
 )
 
 func init() {
@@ -173,6 +175,30 @@ func BenchmarkParallel_Fiber(b *testing.B) {
 func BenchmarkParallel_Chi(b *testing.B) {
 	r := chi.NewRouter()
 	r.Get("/parallel", func(w http.ResponseWriter, r *http.Request) {})
+	b.RunParallel(func(pb *testing.PB) {
+		req := httptest.NewRequest("GET", "/parallel", nil)
+		w := httptest.NewRecorder()
+		for pb.Next() {
+			r.ServeHTTP(w, req)
+		}
+	})
+}
+
+func BenchmarkParallel_HttpRouter(b *testing.B) {
+	router := httprouter.New()
+	router.GET("/parallel", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {})
+	b.RunParallel(func(pb *testing.PB) {
+		req := httptest.NewRequest("GET", "/parallel", nil)
+		w := httptest.NewRecorder()
+		for pb.Next() {
+			router.ServeHTTP(w, req)
+		}
+	})
+}
+
+func BenchmarkParallel_Mux(b *testing.B) {
+	r := mux.NewRouter()
+	r.HandleFunc("/parallel", func(w http.ResponseWriter, r *http.Request) {}).Methods("GET")
 	b.RunParallel(func(pb *testing.PB) {
 		req := httptest.NewRequest("GET", "/parallel", nil)
 		w := httptest.NewRecorder()

@@ -4,29 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
 )
 
 var (
-	// Version is the framework version, automatically detected at runtime.
-	// Falls back to "dev" if not built with module support or in local development.
-	Version = func() string {
-		if info, ok := debug.ReadBuildInfo(); ok {
-			for _, dep := range info.Deps {
-				if dep.Path == "github.com/ocuris/flux" {
-					return dep.Version
-				}
-			}
-			// If we are building the module itself, Main.Version is used
-			if info.Main.Version != "" && info.Main.Version != "(devel)" {
-				return info.Main.Version
-			}
-		}
-		return "dev"
-	}()
+	// Version is the current stable version of the Flux framework.
+	Version = "1.2.2"
 	website = "https://github.com/ocuris/flux"
 )
 
@@ -76,8 +61,14 @@ func (l *StartupLogger) AddRoute(method, path string, doc *DocBuilder) {
 	l.routes = append(l.routes, RouteInfo{Method: method, Path: path, Doc: doc})
 }
 
-// PrintStartup prints the full startup banner to stdout.
+// PrintStartup prints the startup banner to stdout. If the process is a
+// hot-reload child that has been restarted, it prints a concise message.
 func (l *StartupLogger) PrintStartup(addr string) {
+	if os.Getenv("FLUX_RESTARTED") == "true" {
+		fmt.Printf("   %s🚀  Server restarted %s(%s)%s\n", colorBold+colorBrightGreen, colorDim, time.Now().Format("15:04:05"), colorReset)
+		return
+	}
+
 	fmt.Println()
 	l.printHeader()
 	l.printAppInfo()

@@ -127,7 +127,7 @@ func main() {
 		Title:       "Flux Basic CRUD Example",
 		Version:     "1.0.0",
 		Description: "A minimal user-management REST API demonstrating Flux core patterns.",
-		Debug:       false,
+		Debug:       true,
 	})
 
 	// Middleware — order matters: recover first, then enrich, then log.
@@ -143,6 +143,8 @@ func main() {
 
 	// Meta Group
 	meta := app.Group("/", "System")
+
+	
 	meta.GET("/", handleRoot)         // Auto-summary: "Handle Root"
 	meta.GET("/health", handleHealth) // Auto-summary: "Handle Health"
 

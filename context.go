@@ -2,7 +2,6 @@ package flux
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 )
 
@@ -82,11 +81,8 @@ func (c *Context) JSON(code int, data any) error {
 		return nil
 	}
 
-	buf := c.app.bufPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer c.app.bufPool.Put(buf)
-
-	if err := json.NewEncoder(buf).Encode(data); err != nil {
+	b, err := c.app.encoder.Marshal(data)
+	if err != nil {
 		return err
 	}
 
@@ -94,7 +90,7 @@ func (c *Context) JSON(code int, data any) error {
 	c.Writer.WriteHeader(code)
 	c.statusCode = code
 	c.written = true
-	_, err := c.Writer.Write(buf.Bytes())
+	_, err = c.Writer.Write(b)
 	return err
 }
 

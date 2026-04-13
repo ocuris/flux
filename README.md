@@ -11,7 +11,7 @@
 
 ---
 
-[Features](#-key-features) • [Quick Start](#-quick-start) • [Performance](#-performance-benchmarks) • [Documentation](#-automatic-openapi--scalar-ai) • [Deployment](#-production-readiness)
+[Features](#-key-features) • [Quick Start](#-quick-start) • [Performance](./PERFORMANCE.md) • [API Guide](./API.md) • [Deployment](./DEPLOYMENT.md)
 
 ---
 
@@ -32,18 +32,17 @@ In an ecosystem of heavy frameworks, Flux stands out by being **lightweight yet 
 
 ---
 
-## 🚀 Key Features
-
--   **⚡️ Elite Performance**: Trie-based routing with zero memory allocation during request execution.
--   **🛡 Zero Third-Party Dependencies**: No supply-chain bloat or security risks. Pure Go.
--   **📚 Automatic Documentation**: Native **Scalar AI** and OpenAPI 3.0 generation out of the box.
--   **🔐 Security by Default**: Built-in JWT, Rate Limiting, CORS, and Security Headers.
--   **📦 Developer-Centric**: Automatic graceful shutdowns, request-ID tracking, and structured error handling.
--   **🧪 Testing First**: Built with testability in mind, including an elite benchmarking suite.
+-   **⚡️ Elite Performance**: Trie-based routing with **Dynamic Parameter Pre-scaling** for zero heap-allocations.
+-   **🛡 Zero Dependencies**: No supply-chain bloat or security risks. Pure Go from the ground up.
+-   **📚 Automatic Documentation**: Native **Scalar AI** and OpenAPI 3.0 generation (at `/docs`).
+-   **🔐 Security by Default**: Built-in JWT, Rate Limiting, CORS, and Security Headers middleware.
+-   **🔄 Hot Reloading**: Native CLI tool for an instant development experience with zero setup.
+-   **🧪 Multi-Core Scalability**: Engineered for massive parallel throughput on modern ARM64 silicon.
 
 ---
 
 ## 🏁 Quick Start
+
 
 ### Installation
 
@@ -84,25 +83,52 @@ Visit `http://localhost:8000/docs` to see your API come alive with auto-generate
 
 ---
 
+## 💻 Development Mode
+
+Flux includes a native CLI to make development effortless. It supports "hot reloading" which automatically rebuilds and restarts your app when you save changes.
+
+### Installation
+```bash
+go install github.com/ocuris/flux/cmd/flux@latest
+```
+
+### Usage
+Run your app with the `--reload` (or `-r`) flag to watch for changes:
+```bash
+flux --reload main.go
+```
+
+You can also enable it directly in your `Config`:
+```go
+app := flux.New(flux.Config{
+    Reload: true,
+})
+```
+
+---
+
 ## 📊 Performance Benchmarks
 
 Flux is engineered for ultra-high throughput. By eliminating mutex contention and minimizing the request-handling hot path, Flux delivers bare-metal performance that scales linearly with your hardware.
 
-### 🏆 The Leaderboard (8-core Parallel Stress)
+### 🏆 Comprehensive Framework Comparison
+All tests conducted on **Apple M1 (8-core)** with `GOGC=100`.
 
-| Framework | Time per Request | Allocs/op | Speed Index |
-| :--- | :--- | :---: | :--- |
-| **⚡️ Flux** | **~4.4 ns** (🥇) | **0** | **1.0x (Reference)** |
-| **Echo** | ~5.4 ns | 0 | 1.2x Slower |
-| **Gin** | ~6.7 ns | 0 | 1.5x Slower |
-| **Chi** | ~122.0 ns | 2 | 27.7x Slower |
+| Metric (lower is better) | ⚡️ Flux | Gin | Echo | Fiber |
+| :--- | :--- | :--- | :--- | :--- |
+| **8-Core Parallel Stress** | **3.9 ns** 🥇 | 5.2 ns | 4.8 ns | 2435 ns |
+| **Deep Route (7 segments)** | **22.0 ns** 🥇 | 26.7 ns | 34.1 ns | 4070 ns |
+| **Middleware (5 layers)** | **25.6 ns** 🥇 | 41.8 ns | 109.0 ns | 3881 ns |
+| **Large Scale (100 routes)** | **27.9 ns** 🥇 | 37.9 ns | 36.9 ns | N/A |
+| **JSON Response** | 1133 ns | 1089 ns | **1039 ns** | 7620 ns |
+| **Path Params (:id)** | 53.7 ns | 33.2 ns | **30.0 ns** | 4000 ns |
 
 ### 📈 Scaling Analysis (1 to 8 Cores)
 Flux features a **lock-free routing engine**, allowing it to scale almost perfectly as you add CPU cores.
 
 | Cores | 1 | 2 | 4 | 8 |
 | :--- | :---: | :---: | :---: | :---: |
-| **Throughput (ns/op)** | 20.5 | 10.2 | 5.6 | **4.4** |
+| **Throughput (ns/op)** | 19.4 ns | 10.1 ns | 5.8 ns | **3.9 ns** |
 
 ### 🧠 Why is Flux Faster?
 

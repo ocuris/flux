@@ -1,0 +1,31 @@
+goos: darwin
+goarch: arm64
+pkg: bench
+cpu: Apple M1
+BenchmarkParallel_Flux
+BenchmarkParallel_Flux      	53758224	        29.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-2    	93128836	        12.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-4    	164233136	         6.613 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Flux-8    	239266666	         4.885 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin
+BenchmarkParallel_Gin       	40065886	        26.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-2     	88066394	        13.54 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-4     	154308856	         8.804 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Gin-8     	185065044	         7.782 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo
+BenchmarkParallel_Echo      	43914554	        23.56 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-2    	96072692	        13.30 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-4    	165161754	         7.371 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Echo-8    	217472428	         5.705 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallel_Fiber
+BenchmarkParallel_Fiber     	  301587	      3526 ns/op	    5592 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-2   	  551851	      2627 ns/op	    5592 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-4   	  573961	      2591 ns/op	    5592 B/op	      21 allocs/op
+BenchmarkParallel_Fiber-8   	  453064	      2827 ns/op	    5592 B/op	      21 allocs/op
+BenchmarkParallel_Chi
+BenchmarkParallel_Chi       	 5441894	       224.1 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-2     	 7816508	       136.1 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-4     	12999040	       109.8 ns/op	     368 B/op	       2 allocs/op
+BenchmarkParallel_Chi-8     	10729885	       153.2 ns/op	     368 B/op	       2 allocs/op
+PASS
+ok  	bench	32.829s
