@@ -20,11 +20,11 @@ jobs:
       - name: Trigger Homebrew Update
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: \${{ secrets.HOMEBREW_FLUX_TOKEN }}
+          token: ${{ secrets.HOMEBREW_FLUX_TOKEN }}
           repository: ocuris/homebrew-flux
           event-type: flux-release
           client-payload: |
             {
-              "version": "\${{ steps.shasum.outputs.tag }}",
-              "sha256": "\${{ steps.shasum.outputs.hash }}"
+              "version": "${{ steps.shasum.outputs.tag }}",
+              "sha256": "${{ steps.shasum.outputs.hash }}"
             }
