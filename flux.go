@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+
+	"golang.org/x/sys/unix"
 )
 
 // handlerType is the reflect type for HandlerFunc. Used to reinterpret
@@ -379,12 +381,12 @@ func (f *Flux) Start(addr string, opts ...StartOption) error {
 			var err error
 			c.Control(func(fd uintptr) {
 				// SO_REUSEADDR is safe for all runs (handles TIME_WAIT)
-				_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+				_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
 
 				// SO_REUSEPORT is enabled during managed sessions to allow
 				// seamless handovers and avoid "address already in use" errors.
 				if os.Getenv("FLUX_HOT_RELOAD") == "true" || os.Getenv("FLUX_MANAGED") == "true" {
-					_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1)
+					_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
 				}
 			})
 			return err
