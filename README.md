@@ -85,9 +85,15 @@ Visit `http://localhost:8000/docs` to see your API come alive with auto-generate
 
 ## 💻 Development Mode
 
-Flux includes a native CLI to make development effortless. It supports "hot reloading" which automatically rebuilds and restarts your app when you save changes.
+Flux includes a native CLI (**flx**) to make development effortless. It supports "hot reloading" which automatically rebuilds and restarts your app when you save changes.
 
-### Installation
+### Installation (Homebrew)
+```bash
+brew tap ocuris/flux
+brew install flx
+```
+
+### Installation (Go)
 ```bash
 go install github.com/ocuris/flux/cmd/flux@latest
 ```
@@ -95,7 +101,7 @@ go install github.com/ocuris/flux/cmd/flux@latest
 ### Usage
 Run your app with the `--reload` (or `-r`) flag to watch for changes:
 ```bash
-flux --reload main.go
+flx --reload main.go
 ```
 
 You can also enable it directly in your `Config`:

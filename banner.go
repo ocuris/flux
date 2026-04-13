@@ -11,7 +11,7 @@ import (
 
 var (
 	// Version is the current stable version of the Flux framework.
-	Version = "1.2.2"
+	Version = "1.4.1"
 	website = "https://github.com/ocuris/flux"
 )
 
