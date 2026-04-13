@@ -1,41 +1,30 @@
-name: Auto Tag Release
-
+name: Release & Brew Update
 on:
   push:
-    branches:
-      - main
-
-# Grant explicit permission to this action to push Tags and Releases
-permissions:
-  contents: write
+    tags:
+      - 'v*'
 
 jobs:
-  tag-and-release:
+  update-brew:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
-    # We only want to generate a new tag on PR merges, not on raw commits to main if we can help it,
-    # but the action handles this gracefully.
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Required to accurately determine the next semantic version
+      - name: Calculate SHA256
+        id: shasum
+        run: |
+          VERSION_TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          # Download the source archive and calculate hash
+          curl -L https://github.com/ocuris/flux/archive/${GITHUB_REF}.tar.gz | sha256sum | awk '{print \$1}' > sha.txt
+          echo "hash=\$(cat sha.txt)" >> $GITHUB_OUTPUT
 
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.2
+      - name: Trigger Homebrew Update
+        uses: peter-evans/repository-dispatch@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: false # Do not auto-bump if prefix is docs:, chore:, or missing
-          release_branches: main
-
-      - name: Create a GitHub release
-        uses: ncipollo/release-action@v1
-        if: ${{ steps.tag_version.outputs.new_tag != '' && steps.tag_version.outputs.new_tag != null }}
-        with:
-          tag: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: \${{ secrets.HOMEBREW_FLUX_TOKEN }}
+          repository: ocuris/homebrew-flux
+          event-type: flux-release
+          client-payload: |
+            {
+              "version": "\${{ steps.shasum.outputs.tag }}",
+              "sha256": "\${{ steps.shasum.outputs.hash }}"
+            }
