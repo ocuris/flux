@@ -104,13 +104,6 @@ Run your app with the `--reload` (or `-r`) flag to watch for changes:
 flx --reload main.go
 ```
 
-You can also enable it directly in your `Config`:
-```go
-app := flux.New(flux.Config{
-    Reload: true,
-})
-```
-
 ---
 
 ## 📊 Performance Benchmarks
