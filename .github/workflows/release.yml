@@ -14,8 +14,8 @@ jobs:
           VERSION_TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
           # Download the source archive and calculate hash
-          curl -L https://github.com/ocuris/flux/archive/${GITHUB_REF}.tar.gz | sha256sum | awk '{print \$1}' > sha.txt
-          echo "hash=\$(cat sha.txt)" >> $GITHUB_OUTPUT
+          curl -L https://github.com/ocuris/flux/archive/${GITHUB_REF}.tar.gz | sha256sum | awk '{print $1}' > sha.txt
+          echo "hash=$(cat sha.txt)" >> $GITHUB_OUTPUT
 
       - name: Trigger Homebrew Update
         uses: peter-evans/repository-dispatch@v2
