@@ -18,7 +18,7 @@ func main() {
 }
 
 func run(args []string) error {
-	fs := flag.NewFlagSet("flux", flag.ContinueOnError)
+	fs := flag.NewFlagSet("flx", flag.ContinueOnError)
 	reload := fs.Bool("reload", false, "Enable hot reloading")
 	rShort := fs.Bool("r", false, "Enable hot reloading (shorthand)")
 	version := fs.Bool("version", false, "Print version")
@@ -30,7 +30,7 @@ func run(args []string) error {
 	}
 
 	if *version || *vShort {
-		fmt.Printf("Flux CLI v%s\n", flux.Version)
+		fmt.Printf("FLUX CLI v%s\n", flux.Version)
 		return nil
 	}
 
@@ -87,26 +87,27 @@ func printHelp() {
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  flux [flags] <target> [args...]")
+	fmt.Println("  flx [flags] <target> [args...]")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -r, --reload    Enable hot-reloading (watches for .go file changes)")
 	fmt.Println("  -v, --version   Display current version information")
 	fmt.Println("  -h, --help      Display this diagnostic help menu")
 	fmt.Println()
+	// Removed redundant section for a cleaner look
 	fmt.Println("Arguments:")
 	fmt.Println("  target          The Go file (e.g., main.go) or compiled binary to run")
 	fmt.Println("  args...         Optional arguments passed directly to your application")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  ▸ Run an application directly:")
-	fmt.Println("    flux main.go")
+	fmt.Println("    flx main.go")
 	fmt.Println()
 	fmt.Println("  ▸ Run with hot-reloading enabled:")
-	fmt.Println("    flux --reload explorer.go")
+	fmt.Println("    flx --reload explorer.go")
 	fmt.Println()
 	fmt.Println("  ▸ Pass arguments to your app:")
-	fmt.Println("    flux main.go --port 9000 --debug")
+	fmt.Println("    flx main.go --port 9000 --debug")
 	fmt.Println()
 	fmt.Println("For full documentation and support, visit https://github.com/ocuris/flux")
 }
